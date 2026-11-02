@@ -1,4 +1,5 @@
 const EventEmitter = require('events');
+const WebSocket = require('ws');
 const logger = require('./logger');
 
 class LavalinkSession extends EventEmitter {
@@ -126,19 +127,21 @@ class LavalinkSession extends EventEmitter {
             player.ping = msg.state.ping || 0;
             player.connected = msg.state.connected ?? true;
 
-            // Precision Multi-Bot Auto-Sync:
-            // When multiple bots are playing in the same guild, snap follower to lead on first active position report
-            if (player.playing && player.position > 1500 && !player._syncedInitial) {
-              for (const p of this.client.players.values()) {
-                if (p.guildId === msg.guildId && (!player.ownerId || p.ownerId === player.ownerId) && p !== player && p.playing && p.position > 1500) {
+            // Gentle Multi-Bot Drift Check:
+            // Only re-align if a bot has a massive desync (> 2500ms, e.g. late join or major packet freeze)
+            // Never seek on small normal differences (< 2.5s) to avoid tearing down audio stream buffers.
+            if (player.playing && player.position > 2500 && !player._syncedInitial) {
+              const uniquePlayers = new Set(this.client.players.values());
+              for (const p of uniquePlayers) {
+                if (p.guildId === msg.guildId && (!player.ownerId || p.ownerId === player.ownerId) && p !== player && p.playing && p.position > 2500) {
                   const diff = Math.abs(player.position - p.position);
-                  if (diff > 35) {
+                  if (diff > 2500) {
                     const syncTarget = Math.max(player.position, p.position);
                     player.position = syncTarget;
                     player._syncedInitial = true;
                     p._syncedInitial = true;
                     this.client.sendPlayerUpdate(msg.guildId, { position: syncTarget }, this.userId).catch(() => {});
-                    logger.success('SYNC', `Precision sync lock: Aligned bot [${player.accountId || this.userId}] to [${syncTarget}ms] (${diff}ms drift eliminated)`);
+                    logger.success('SYNC', `Soft alignment: Synced bot [${player.accountId || this.userId}] to [${syncTarget}ms] (${diff}ms gap corrected)`);
                   } else {
                     player._syncedInitial = true;
                     p._syncedInitial = true;
@@ -329,39 +332,48 @@ class LavalinkClient extends EventEmitter {
       return;
     }
 
-    // 2. Multi-Bot De-duplication: Ensure only 1 bot in the guild handles track end to keep all bots 100% in sync
+    // Mark THIS bot's player as finished
+    player.playing = false;
+
+    // 2. Repeat Loop for track
+    if (player.loop === 'track' && player.currentTrack) {
+      const now = Date.now();
+      if (!this._lastLoopMap) this._lastLoopMap = new Map();
+      const lastLoop = this._lastLoopMap.get(player.guildId) || 0;
+      if (now - lastLoop > 2500) {
+        this._lastLoopMap.set(player.guildId, now);
+        const trackToRepeat = player.currentTrack;
+        const uniquePlayers = new Set(this.players.values());
+        for (const p of uniquePlayers) {
+          if (p.guildId === player.guildId && (!player.ownerId || p.ownerId === player.ownerId)) {
+            p.currentTrack = trackToRepeat;
+            p.position = 0;
+            p.playing = true;
+            p.paused = false;
+            p._syncedInitial = false;
+            const pFilters = this.buildFiltersPayload(p);
+            this.sendPlayerUpdate(p.guildId, {
+              track: { encoded: trackToRepeat.encoded },
+              paused: false,
+              volume: this.calculateMasterVolume(p.volume),
+              filters: pFilters
+            }, p.userId).catch(() => {});
+          }
+        }
+        this.emit('trackStart', { player, track: trackToRepeat, ownerId: player.ownerId, accountId: player.accountId });
+        this.emit('playerUpdate', player);
+      }
+      return;
+    }
+
+    // 3. Multi-Bot Queue De-duplication: Only 1 trigger advances the queue for the guild
     const now = Date.now();
     if (!this._lastTrackEndMap) this._lastTrackEndMap = new Map();
     const lastEnd = this._lastTrackEndMap.get(player.guildId) || 0;
-    if (now - lastEnd < 3500) {
-      return; // Already processed for this guild!
+    if (now - lastEnd < 3000) {
+      return; // Already processed queue advance for this guild
     }
     this._lastTrackEndMap.set(player.guildId, now);
-
-    player.playing = false;
-
-    // 3. Repeat Loop for track
-    if (player.loop === 'track' && player.currentTrack) {
-      const trackToRepeat = player.currentTrack;
-      for (const p of this.players.values()) {
-        if (p.guildId === player.guildId && (!player.ownerId || p.ownerId === player.ownerId)) {
-          p.currentTrack = trackToRepeat;
-          p.position = 0;
-          p.playing = true;
-          p.paused = false;
-          const pFilters = this.buildFiltersPayload(p);
-          this.sendPlayerUpdate(p.guildId, {
-            track: { encoded: trackToRepeat.encoded },
-            paused: false,
-            volume: this.calculateMasterVolume(p.volume),
-            filters: pFilters
-          }, p.userId).catch(() => {});
-        }
-      }
-      this.emit('trackStart', { player, track: trackToRepeat, ownerId: player.ownerId, accountId: player.accountId });
-      this.emit('playerUpdate', player);
-      return;
-    }
 
     if (player.loop === 'queue' && player.currentTrack) {
       player.queue.push(player.currentTrack);
@@ -379,17 +391,20 @@ class LavalinkClient extends EventEmitter {
 
     if (player.queue.length > 0) {
       const nextTrack = player.queue.shift();
-      // Sync next track across all bots under this key
-      for (const p of this.players.values()) {
+      const uniquePlayers = new Set(this.players.values());
+      // Advance to next track across all bots in unison
+      for (const p of uniquePlayers) {
         if (p.guildId === guildId && (!player.ownerId || p.ownerId === player.ownerId)) {
           p.currentTrack = nextTrack;
           p.position = 0;
           p.playing = true;
           p.paused = false;
+          p._syncedInitial = false;
           const pFilters = this.buildFiltersPayload(p);
           this.sendPlayerUpdate(guildId, {
             track: { encoded: nextTrack.encoded },
-            volume: Math.min(1000, Math.max(10, p.volume)),
+            paused: false,
+            volume: this.calculateMasterVolume(p.volume),
             filters: pFilters
           }, p.userId).catch(() => {});
         }
@@ -397,17 +412,26 @@ class LavalinkClient extends EventEmitter {
       this.emit('queueUpdate', player);
       this.emit('trackStart', { player, track: nextTrack, ownerId: player.ownerId, accountId: player.accountId });
     } else {
-      for (const p of this.players.values()) {
-        if (p.guildId === guildId && (!player.ownerId || p.ownerId === player.ownerId)) {
-          p.currentTrack = null;
-          p.playing = false;
-          p.position = 0;
-          this.sendPlayerUpdate(guildId, {
-            track: { encoded: null }
-          }, p.userId).catch(() => {});
+      // Queue is finished: DO NOT abruptly cut off follower bots that are still finishing their stream!
+      // Let each bot naturally stream until the song finishes.
+      player.currentTrack = null;
+      player.playing = false;
+      player.position = 0;
+
+      const uniquePlayers = new Set(this.players.values());
+      const anyStillPlaying = Array.from(uniquePlayers).some(
+        p => p.guildId === guildId && (!player.ownerId || p.ownerId === player.ownerId) && p.playing
+      );
+      if (!anyStillPlaying) {
+        for (const p of uniquePlayers) {
+          if (p.guildId === guildId && (!player.ownerId || p.ownerId === player.ownerId)) {
+            p.currentTrack = null;
+            p.playing = false;
+            p.position = 0;
+          }
         }
+        this.emit('queueEnd', player);
       }
-      this.emit('queueEnd', player);
     }
   }
 
@@ -664,10 +688,12 @@ class LavalinkClient extends EventEmitter {
       });
     }
     if (!session || !session.sessionId) {
-      for (const s of this.sessions.values()) {
-        if (s.sessionId && s.connected) {
-          session = s;
-          break;
+      if (!userId) {
+        for (const s of this.sessions.values()) {
+          if (s.sessionId && s.connected) {
+            session = s;
+            break;
+          }
         }
       }
     }
@@ -688,7 +714,7 @@ class LavalinkClient extends EventEmitter {
           if (session.sessionId && session.connected) return resolve();
           const onReady = () => resolve();
           session.once('ready', onReady);
-          setTimeout(() => { session.off('ready', onReady); resolve(); }, 4000);
+          setTimeout(() => { session.off('ready', onReady); resolve(); }, 3000);
         });
         if (session.sessionId) {
           const player = this.getPlayer(guildId, userId);
@@ -727,8 +753,8 @@ class LavalinkClient extends EventEmitter {
       if (options.position !== undefined) {
         updateData.position = options.position;
       }
-      // Only include voice payload if voice handshake has not yet been established on Lavalink
-      if (player.voice?.token && player.voice?.endpoint && player.voice?.sessionId && !player.voiceConnected) {
+      // Include voice credentials if available to ensure instant Discord voice connectivity
+      if (player.voice?.token && player.voice?.endpoint && player.voice?.sessionId) {
         const cleanEndpoint = (player.voice.endpoint || '').replace(/^wss?:\/\//i, '').replace(/\/.*$/, '');
         updateData.voice = {
           token: player.voice.token,
