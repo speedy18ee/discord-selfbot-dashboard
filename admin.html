@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EXC - KeyAuth Licensing System & Admin Portal</title>
+  <link rel="icon" type="image/jpeg" href="/assets/logo.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/css/theme-assets.css?v=2.0">
+  <script src="/js/assets-fallback.js"></script>
+  <link rel="stylesheet" href="/css/style.css?v=6.0">
+  <style>
+    body {
+      background-color: #000000 !important;
+      color: #ffffff !important;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* Fixed 4K Background */
+    .admin-bg-layer {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #000 url('/assets/background.jpg') no-repeat center center fixed;
+      background-size: cover;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .admin-overlay-dim {
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 8, 12, 0.78);
+      backdrop-filter: blur(8px);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* Admin Container */
+    .admin-wrapper {
+      position: relative;
+      z-index: 10;
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 24px 20px 80px 20px;
+    }
+
+    /* Top Navigation Banner */
+    .admin-navbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: rgba(15, 15, 22, 0.75);
+      border: 1px solid rgba(168, 85, 247, 0.25);
+      border-radius: 20px;
+      backdrop-filter: blur(25px);
+      margin-bottom: 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+
+    .admin-brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .admin-brand-logo {
+      width: 46px;
+      height: 46px;
+      border-radius: 50% !important;
+      object-fit: cover !important;
+      aspect-ratio: 1 / 1 !important;
+      border: 2px solid #a855f7;
+      box-shadow: 0 0 18px rgba(168, 85, 247, 0.6);
+    }
+
+    .admin-brand-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.35rem;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      background: linear-gradient(180deg, #ffffff 40%, #c084fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .keyauth-pill {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 8px;
+      background: rgba(168, 85, 247, 0.2);
+      border: 1px solid rgba(168, 85, 247, 0.5);
+      color: #c084fc;
+      -webkit-text-fill-color: #c084fc;
+    }
+
+    /* Top Stats Grid */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card-box {
+      background: rgba(15, 15, 24, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      padding: 20px 22px;
+      backdrop-filter: blur(20px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .stat-card-box:hover {
+      transform: translateY(-3px);
+      border-color: rgba(168, 85, 247, 0.4);
+    }
+
+    .stat-card-info h4 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .stat-card-info .stat-num {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #ffffff;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stat-icon-wrapper {
+      width: 50px;
+      height: 50px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+    }
+
+    .icon-purple { background: rgba(168, 85, 247, 0.18); color: #c084fc; }
+    .icon-blue { background: rgba(59, 130, 246, 0.18); color: #60a5fa; }
+    .icon-green { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
+    .icon-yellow { background: rgba(234, 179, 8, 0.18); color: #facc15; }
+
+    /* Action & Search Bar */
+    .controls-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .search-box {
+      flex: 1;
+      max-width: 450px;
+      position: relative;
+    }
+
+    .search-box input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 12px 16px 12px 42px;
+      color: #ffffff;
+      font-size: 0.9rem;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .search-box input:focus {
+      border-color: #a855f7;
+      box-shadow: 0 0 15px rgba(168, 85, 247, 0.3);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .search-box i {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #64748b;
+    }
+
+    /* Tab Switcher */
+    .tab-pills {
+      display: flex;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 6px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .tab-pill {
+      background: none;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 10px;
+      color: #94a3b8;
+      font-weight: 700;
+      font-size: 0.88rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .tab-pill.active {
+      background: linear-gradient(135deg, #9333ea, #7c3aed);
+      color: #ffffff;
+      box-shadow: 0 4px 15px rgba(147, 51, 234, 0.4);
+    }
+
+    /* Primary Action Buttons */
+    .btn-create-key {
+      background: linear-gradient(135deg, #9333ea, #7c3aed);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 12px 22px;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 0.92rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 6px 20px rgba(147, 51, 234, 0.45);
+      transition: all 0.2s ease;
+    }
+
+    .btn-create-key:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(147, 51, 234, 0.65);
+    }
+
+    /* Modern Data Table */
+    .table-container {
+      background: rgba(14, 14, 22, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      overflow: hidden;
+      backdrop-filter: blur(25px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    thead {
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    th {
+      padding: 16px 20px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      font-weight: 700;
+    }
+
+    td {
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 0.88rem;
+      vertical-align: middle;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .key-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #e2e8f0;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-copy-sm {
+      background: none;
+      border: none;
+      color: #a855f7;
+      cursor: pointer;
+      font-size: 0.9rem;
+      padding: 4px;
+      transition: transform 0.15s ease, color 0.15s ease;
+    }
+
+    .btn-copy-sm:hover {
+      color: #c084fc;
+      transform: scale(1.2);
+    }
+
+    .status-pill {
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .status-active { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); }
+    .status-unused { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
+    .status-banned { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+    .status-expired { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.3); }
+
+    .limit-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      color: #fbbf24;
+      background: rgba(251, 191, 36, 0.12);
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+    }
+
+    /* Action Buttons */
+    .action-btn-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-action-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.04);
+      color: #cbd5e1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.82rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-action-icon:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      transform: translateY(-2px);
+    }
+
+    .btn-action-icon.hwid:hover { color: #38bdf8; border-color: #38bdf8; }
+    .btn-action-icon.limit:hover { color: #fbbf24; border-color: #fbbf24; }
+    .btn-action-icon.ban:hover { color: #f87171; border-color: #f87171; }
+    .btn-action-icon.del:hover { color: #ef4444; border-color: #ef4444; }
+
+    /* Admin Password Overlay */
+    .admin-auth-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(25px);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .admin-login-card {
+      background: rgba(15, 15, 24, 0.95);
+      border: 1px solid rgba(168, 85, 247, 0.35);
+      border-radius: 24px;
+      padding: 40px 32px;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(168, 85, 247, 0.2);
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(15px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-box {
+      background: rgba(18, 18, 28, 0.95);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      border-radius: 20px;
+      padding: 30px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9);
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+      text-align: left;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-control {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 12px 14px;
+      color: #fff;
+      font-family: inherit;
+      outline: none;
+      box-sizing: border-box;
+      transition: border-color 0.2s ease;
+    }
+
+    .form-control:focus {
+      border-color: #a855f7;
+    }
+
+    /* Toast Notification */
+    .toast-pill {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #181824;
+      border: 1px solid #a855f7;
+      color: #fff;
+      padding: 14px 22px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      z-index: 99999;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+      display: none;
+      animation: slideUp 0.3s ease;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="admin-bg-layer"></div>
+  <div class="admin-overlay-dim"></div>
+
+  <!-- ADMIN AUTHENTICATION MODAL -->
+  <div id="admin-auth-overlay" class="admin-auth-overlay">
+    <div class="admin-login-card">
+      <img src="/assets/logo.jpg" alt="Logo" class="admin-brand-logo" style="width: 72px; height: 72px; margin-bottom: 16px;">
+      <h2 style="font-family: 'Orbitron', sans-serif; font-size: 1.5rem; margin-bottom: 6px; color: #fff;">EXC ADMIN PORTAL</h2>
+      <p style="font-size: 0.84rem; color: #94a3b8; margin-bottom: 24px;">Enter Master Admin Password to manage KeyAuth licenses</p>
+      
+      <form onsubmit="handleAdminLogin(event)">
+        <div class="form-group">
+          <input type="password" id="input-admin-pass" class="form-control" placeholder="Enter Admin Password" required autofocus style="text-align: center; letter-spacing: 2px;">
+        </div>
+        <div id="admin-login-err" style="color: #f87171; font-size: 0.82rem; margin-bottom: 16px; display: none;"></div>
+        <button type="submit" class="btn-create-key" style="width: 100%; justify-content: center; padding: 14px;">
+          <i class="fa-solid fa-lock-open"></i> Unlock Admin Portal
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MAIN ADMIN DASHBOARD -->
+  <div class="admin-wrapper" id="admin-main-panel" style="display: none;">
+    <!-- Top Nav Banner -->
+    <div class="admin-navbar">
+      <div class="admin-brand">
+        <img src="/assets/logo.jpg" alt="Logo" class="admin-brand-logo">
+        <div>
+          <div class="admin-brand-title">
+            EXC LICENSING
+            <span class="keyauth-pill"><i class="fa-solid fa-key"></i> KEYAUTH SYSTEM</span>
+          </div>
+          <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">
+            Self-Hosted KeyAuth License & Bot Quota Management System
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <a href="/dashboard" class="btn-action-icon" title="Go to Bot Dashboard" style="width: auto; padding: 0 14px; gap: 6px; text-decoration: none;">
+          <i class="fa-solid fa-gauge"></i> Bot Dashboard
+        </a>
+        <button class="btn-action-icon del" onclick="adminLogout()" title="Logout Admin">
+          <i class="fa-solid fa-power-off"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+      <div class="stat-card-box">
+        <div class="stat-card-info">
+          <h4>Total Licenses</h4>
+          <div class="stat-num" id="stat-total-keys">0</div>
+        </div>
+        <div class="stat-icon-wrapper icon-purple"><i class="fa-solid fa-key"></i></div>
+      </div>
+      <div class="stat-card-box">
+        <div class="stat-card-info">
+          <h4>Active Users</h4>
+          <div class="stat-num" id="stat-active-users">0</div>
+        </div>
+        <div class="stat-icon-wrapper icon-blue"><i class="fa-solid fa-users"></i></div>
+      </div>
+      <div class="stat-card-box">
+        <div class="stat-card-info">
+          <h4>Unused Keys</h4>
+          <div class="stat-num" id="stat-unused-keys">0</div>
+        </div>
+        <div class="stat-icon-wrapper icon-yellow"><i class="fa-solid fa-ticket"></i></div>
+      </div>
+      <div class="stat-card-box">
+        <div class="stat-card-info">
+          <h4>Live Selfbots</h4>
+          <div class="stat-num" id="stat-online-bots">0</div>
+        </div>
+        <div class="stat-icon-wrapper icon-green"><i class="fa-solid fa-robot"></i></div>
+      </div>
+    </div>
+
+    <!-- Controls Bar -->
+    <div class="controls-bar">
+      <div class="tab-pills">
+        <button class="tab-pill active" id="tab-btn-keys" onclick="switchAdminTab('keys')">
+          <i class="fa-solid fa-key"></i> Licenses
+        </button>
+        <button class="tab-pill" id="tab-btn-users" onclick="switchAdminTab('users')">
+          <i class="fa-solid fa-users"></i> Customers / Users
+        </button>
+      </div>
+
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="admin-search-input" placeholder="Search license key, user, or HWID..." oninput="filterTable()">
+      </div>
+
+      <button class="btn-create-key" onclick="openCreateKeyModal()">
+        <i class="fa-solid fa-plus"></i> Generate License Keys
+      </button>
+    </div>
+
+    <!-- LICENSES TABLE -->
+    <div class="table-container" id="panel-keys">
+      <table>
+        <thead>
+          <tr>
+            <th>License Key</th>
+            <th>Status</th>
+            <th>Bot Quota Limit</th>
+            <th>Duration</th>
+            <th>Bound HWID</th>
+            <th>Note</th>
+            <th style="text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-licenses">
+          <tr><td colspan="7" style="text-align: center; color: #64748b; padding: 40px;">Loading licenses...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- USERS TABLE -->
+    <div class="table-container" id="panel-users" style="display: none;">
+      <table>
+        <thead>
+          <tr>
+            <th>User / Key</th>
+            <th>Status</th>
+            <th>Bots In Use / Quota</th>
+            <th>Bound HWID</th>
+            <th>Device</th>
+            <th>Last Active</th>
+            <th style="text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-users">
+          <tr><td colspan="7" style="text-align: center; color: #64748b; padding: 40px;">Loading customers...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MODAL: GENERATE LICENSE KEYS -->
+  <div class="modal-overlay" id="modal-create-key">
+    <div class="modal-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 style="margin: 0; font-family: 'Orbitron', sans-serif; font-size: 1.15rem; color: #fff;">
+          <i class="fa-solid fa-key" style="color: #a855f7;"></i> Generate License Keys
+        </h3>
+        <button onclick="closeModal('modal-create-key')" style="background: none; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer;">&times;</button>
+      </div>
+
+      <form onsubmit="handleCreateLicenses(event)">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <div class="form-group">
+            <label>Amount of Keys</label>
+            <input type="number" id="gen-amount" class="form-control" value="1" min="1" max="50" required>
+          </div>
+          <div class="form-group">
+            <label>Bot Quota Limit</label>
+            <input type="number" id="gen-limit" class="form-control" value="10" min="1" max="1000" placeholder="e.g. 10, 25, 50" required>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <div class="form-group">
+            <label>Duration (Days)</label>
+            <input type="number" id="gen-days" class="form-control" value="30" min="1" max="9999" placeholder="30 (9999 = Lifetime)" required>
+          </div>
+          <div class="form-group">
+            <label>Key Mask Format</label>
+            <input type="text" id="gen-mask" class="form-control" value="EXC-XXXX-XXXX-XXXX" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Customer Note / Discord Tag</label>
+          <input type="text" id="gen-note" class="form-control" placeholder="e.g. Sold to @User#1234">
+        </div>
+
+        <button type="submit" class="btn-create-key" style="width: 100%; justify-content: center; margin-top: 10px;">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> Generate License Key(s)
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: EDIT BOT LIMIT -->
+  <div class="modal-overlay" id="modal-edit-limit">
+    <div class="modal-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 style="margin: 0; font-size: 1.15rem; color: #fff;">
+          <i class="fa-solid fa-sliders" style="color: #fbbf24;"></i> Change Bot Limit
+        </h3>
+        <button onclick="closeModal('modal-edit-limit')" style="background: none; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer;">&times;</button>
+      </div>
+
+      <input type="hidden" id="edit-limit-target-id">
+      <input type="hidden" id="edit-limit-target-type">
+
+      <div class="form-group">
+        <label>Selected Target</label>
+        <div id="edit-limit-target-name" style="font-family: 'JetBrains Mono', monospace; font-size: 0.88rem; color: #a855f7; margin-bottom: 12px; word-break: break-all;">-</div>
+      </div>
+
+      <div class="form-group">
+        <label>New Bot Quota Limit</label>
+        <input type="number" id="edit-limit-value" class="form-control" min="1" max="1000" required>
+      </div>
+
+      <button type="button" class="btn-create-key" style="width: 100%; justify-content: center;" onclick="saveNewBotLimit()">
+        <i class="fa-solid fa-check"></i> Save Bot Limit
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast Notification Pill -->
+  <div id="admin-toast" class="toast-pill"></div>
+
+  <script>
+    let adminToken = localStorage.getItem('exc_admin_token') || null;
+    let allLicenses = [];
+    let allUsers = [];
+    let currentTab = 'keys';
+
+    window.addEventListener('DOMContentLoaded', () => {
+      if (adminToken) {
+        verifyAdminSession();
+      } else {
+        showLoginOverlay();
+      }
+    });
+
+    function showLoginOverlay() {
+      document.getElementById('admin-auth-overlay').style.display = 'flex';
+      document.getElementById('admin-main-panel').style.display = 'none';
+    }
+
+    function hideLoginOverlay() {
+      document.getElementById('admin-auth-overlay').style.display = 'none';
+      document.getElementById('admin-main-panel').style.display = 'block';
+    }
+
+    async function handleAdminLogin(e) {
+      e.preventDefault();
+      const pass = document.getElementById('input-admin-pass').value.trim();
+      const errBox = document.getElementById('admin-login-err');
+      errBox.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/admin/login/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pass })
+        });
+        const data = await res.json();
+        if (data.success && data.token) {
+          adminToken = data.token;
+          localStorage.setItem('exc_admin_token', adminToken);
+          hideLoginOverlay();
+          loadAdminData();
+        } else {
+          errBox.textContent = data.error || 'Invalid Admin Password';
+          errBox.style.display = 'block';
+        }
+      } catch (err) {
+        errBox.textContent = 'Server connection error';
+        errBox.style.display = 'block';
+      }
+    }
+
+    function adminLogout() {
+      fetch('/api/admin/logout/', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      }).catch(() => {});
+      localStorage.removeItem('exc_admin_token');
+      adminToken = null;
+      showLoginOverlay();
+    }
+
+    async function verifyAdminSession() {
+      try {
+        const res = await fetch('/api/admin/stats/', {
+          headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        if (res.ok) {
+          hideLoginOverlay();
+          loadAdminData();
+        } else {
+          adminLogout();
+        }
+      } catch (_) {
+        adminLogout();
+      }
+    }
+
+    async function loadAdminData() {
+      loadStats();
+      loadLicenses();
+      loadUsers();
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/admin/stats/', {
+          headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        const data = await res.json();
+        if (data.success && data.stats) {
+          document.getElementById('stat-total-keys').textContent = data.stats.totalLicenses;
+          document.getElementById('stat-active-users').textContent = data.stats.totalUsers;
+          document.getElementById('stat-unused-keys').textContent = data.stats.unusedLicenses;
+          document.getElementById('stat-online-bots').textContent = data.stats.onlineBots;
+        }
+      } catch (_) {}
+    }
+
+    async function loadLicenses() {
+      try {
+        const res = await fetch('/api/admin/licenses/', {
+          headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+          allLicenses = data.licenses || [];
+          renderLicenses(allLicenses);
+        }
+      } catch (_) {}
+    }
+
+    async function loadUsers() {
+      try {
+        const res = await fetch('/api/admin/users/', {
+          headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+          allUsers = data.users || [];
+          renderUsers(allUsers);
+        }
+      } catch (_) {}
+    }
+
+    function renderLicenses(list) {
+      const tbody = document.getElementById('tbody-licenses');
+      if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #64748b; padding: 40px;">No licenses found. Click "Generate License Keys" above to create some!</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = list.map(lic => {
+        const statusClass = 'status-' + (lic.status || 'unused');
+        const durationText = lic.days >= 9999 ? 'Lifetime' : `${lic.days} Days`;
+        const hwidText = lic.hwid ? `<span style="font-family: monospace; font-size: 0.76rem; color: #38bdf8;">${lic.hwid.substring(0, 15)}...</span>` : '<span style="color: #64748b; font-size: 0.78rem;">Not Bound</span>';
+
+        return `
+          <tr>
+            <td>
+              <span class="key-badge">
+                ${lic.key}
+                <button class="btn-copy-sm" onclick="copyText('${lic.key}')" title="Copy Key"><i class="fa-solid fa-copy"></i></button>
+              </span>
+            </td>
+            <td><span class="status-pill ${statusClass}">${lic.status}</span></td>
+            <td><span class="limit-badge">${lic.botLimit || 10} Bots</span></td>
+            <td style="color: #94a3b8; font-size: 0.82rem;">${durationText}</td>
+            <td>${hwidText}</td>
+            <td style="color: #94a3b8; font-size: 0.8rem; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${lic.note || '-'}</td>
+            <td style="text-align: right;">
+              <div class="action-btn-group" style="justify-content: flex-end;">
+                <button class="btn-action-icon limit" onclick="openEditLimitModal('${lic.id}', 'license', '${lic.key}', ${lic.botLimit || 10})" title="Change Bot Limit"><i class="fa-solid fa-sliders"></i></button>
+                <button class="btn-action-icon hwid" onclick="resetLicenseHwid('${lic.id}')" title="Reset HWID"><i class="fa-solid fa-arrows-rotate"></i></button>
+                <button class="btn-action-icon ban" onclick="toggleBanLicense('${lic.id}')" title="Ban / Unban"><i class="fa-solid fa-ban"></i></button>
+                <button class="btn-action-icon del" onclick="deleteLicense('${lic.id}')" title="Delete Key"><i class="fa-solid fa-trash"></i></button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderUsers(list) {
+      const tbody = document.getElementById('tbody-users');
+      if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #64748b; padding: 40px;">No customers registered yet.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = list.map(u => {
+        const hwidText = u.hwid ? `<span style="font-family: monospace; font-size: 0.76rem; color: #38bdf8;">${u.hwid.substring(0, 15)}...</span>` : '<span style="color: #64748b;">Not Bound</span>';
+        const lastActive = u.lastLogin ? new Date(u.lastLogin).toLocaleString() : 'Never';
+
+        return `
+          <tr>
+            <td>
+              <div style="font-weight: 700; color: #fff;">${u.username}</div>
+              <small style="font-family: monospace; color: #94a3b8;">${u.key || u.id}</small>
+            </td>
+            <td><span class="status-pill status-active">${u.status}</span></td>
+            <td>
+              <span class="limit-badge" style="color: #4ade80; border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.12);">
+                ${u.activeBots || 0} / ${u.botLimit || 10} Bots
+              </span>
+            </td>
+            <td>${hwidText}</td>
+            <td style="color: #94a3b8; font-size: 0.8rem;">${u.boundDevice?.browser || 'PC'} (${u.boundDevice?.platform || 'Desktop'})</td>
+            <td style="color: #94a3b8; font-size: 0.78rem;">${lastActive}</td>
+            <td style="text-align: right;">
+              <div class="action-btn-group" style="justify-content: flex-end;">
+                <button class="btn-action-icon limit" onclick="openEditLimitModal('${u.id}', 'user', '${u.username}', ${u.botLimit || 10})" title="Edit Bot Limit"><i class="fa-solid fa-sliders"></i></button>
+                <button class="btn-action-icon hwid" onclick="resetUserHwid('${u.id}')" title="Reset HWID"><i class="fa-solid fa-arrows-rotate"></i></button>
+                <button class="btn-action-icon del" onclick="deleteUser('${u.id}')" title="Remove User"><i class="fa-solid fa-trash"></i></button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function switchAdminTab(tab) {
+      currentTab = tab;
+      document.getElementById('tab-btn-keys').classList.toggle('active', tab === 'keys');
+      document.getElementById('tab-btn-users').classList.toggle('active', tab === 'users');
+      document.getElementById('panel-keys').style.display = tab === 'keys' ? 'block' : 'none';
+      document.getElementById('panel-users').style.display = tab === 'users' ? 'block' : 'none';
+    }
+
+    function filterTable() {
+      const q = document.getElementById('admin-search-input').value.toLowerCase().trim();
+      if (currentTab === 'keys') {
+        const filtered = allLicenses.filter(l => 
+          l.key.toLowerCase().includes(q) || 
+          (l.note && l.note.toLowerCase().includes(q)) ||
+          (l.hwid && l.hwid.toLowerCase().includes(q))
+        );
+        renderLicenses(filtered);
+      } else {
+        const filtered = allUsers.filter(u => 
+          u.username.toLowerCase().includes(q) ||
+          (u.key && u.key.toLowerCase().includes(q)) ||
+          (u.hwid && u.hwid.toLowerCase().includes(q))
+        );
+        renderUsers(filtered);
+      }
+    }
+
+    // License Action Handlers
+    async function handleCreateLicenses(e) {
+      e.preventDefault();
+      const amount = parseInt(document.getElementById('gen-amount').value, 10);
+      const botLimit = parseInt(document.getElementById('gen-limit').value, 10);
+      const days = parseInt(document.getElementById('gen-days').value, 10);
+      const mask = document.getElementById('gen-mask').value.trim();
+      const note = document.getElementById('gen-note').value.trim();
+
+      try {
+        const res = await fetch('/api/admin/licenses/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${adminToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ amount, botLimit, days, mask, note })
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeModal('modal-create-key');
+          showToast(`Successfully created ${data.count} new license key(s)!`);
+          loadAdminData();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (err) {
+        alert('Server request failed');
+      }
+    }
+
+    async function resetLicenseHwid(id) {
+      if (!confirm('Reset HWID for this license key? The user will be able to bind a new device.')) return;
+      try {
+        const res = await fetch('/api/admin/licenses/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${adminToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ action: 'hwid', id })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('HWID reset successfully!');
+          loadLicenses();
+        }
+      } catch (_) {}
+    }
+
+    async function resetUserHwid(id) {
+      if (!confirm('Reset HWID for this user?')) return;
+      try {
+        const res = await fetch('/api/admin/users/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${adminToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ action: 'hwid', id })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('User HWID cleared successfully!');
+          loadUsers();
+        }
+      } catch (_) {}
+    }
+
+    async function toggleBanLicense(id) {
+      try {
+        const res = await fetch('/api/admin/licenses/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${adminToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ action: 'ban', id })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`License status changed to: ${data.status}`);
+          loadLicenses();
+        }
+      } catch (_) {}
+    }
+
+    async function deleteLicense(id) {
+      if (!confirm('Are you sure you want to permanently delete this license key?')) return;
+      try {
+        const res = await fetch('/api/admin/licenses/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${adminToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ action: 'delete', id })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('License key deleted!');
+          loadAdminData();
+        }
+      } catch (_) {}
+    }
+
+    async function deleteUser(id) {
+      if (!confirm('Permanently remove this customer account?')) return;
+      try {
+        const res = await fetch('/api/admin/users/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${adminToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ action: 'delete', id })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('User removed!');
+          loadAdminData();
+        }
+      } catch (_) {}
+    }
+
+    // Edit Bot Limit Modal Helpers
+    function openEditLimitModal(id, type, name, currentLimit) {
+      document.getElementById('edit-limit-target-id').value = id;
+      document.getElementById('edit-limit-target-type').value = type;
+      document.getElementById('edit-limit-target-name').textContent = `${type.toUpperCase()}: ${name}`;
+      document.getElementById('edit-limit-value').value = currentLimit;
+      openModal('modal-edit-limit');
+    }
+
+    async function saveNewBotLimit() {
+      const id = document.getElementById('edit-limit-target-id').value;
+      const type = document.getElementById('edit-limit-target-type').value;
+      const val = parseInt(document.getElementById('edit-limit-value').value, 10);
+      if (!val || val < 1) return alert('Please enter a valid limit number');
+
+      const url = type === 'license' ? '/api/admin/licenses/' : '/api/admin/users/';
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${adminToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ action: 'limit', id, botLimit: val })
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeModal('modal-edit-limit');
+          showToast(`Bot limit updated to ${val} bots!`);
+          loadAdminData();
+        }
+      } catch (_) {}
+    }
+
+    // Modal & Toast Helpers
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    function openCreateKeyModal() { openModal('modal-create-key'); }
+
+    function copyText(text) {
+      navigator.clipboard.writeText(text);
+      showToast(`Copied to clipboard: ${text}`);
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('admin-toast');
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 3200);
+    }
+  </script>
+</body>
+</html>

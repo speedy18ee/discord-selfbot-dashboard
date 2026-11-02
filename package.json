@@ -1,0 +1,40 @@
+{
+  "name": "discord-selfbot-multi-lavalink-dashboard",
+  "version": "2.0.0",
+  "description": "Premium Multi-Account Discord Selfbot 24/7 Voice & Lavalink Music Dashboard",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "discord-selfbot",
+    "lavalink",
+    "dashboard",
+    "multi-account",
+    "24/7-voice",
+    "music"
+  ],
+  "author": "Antigravity",
+  "license": "MIT",
+  "dependencies": {
+    "@discordjs/voice": "^0.19.2",
+    "@snazzah/davey": "^0.1.12",
+    "discord.js-selfbot-v13": "^2.15.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "https-proxy-agent": "^9.1.0",
+    "lamejs": "^1.2.1",
+    "mysql2": "^3.24.6",
+    "opusscript": "^0.0.8",
+    "socks-proxy-agent": "^10.1.0",
+    "tweetnacl": "^1.0.3",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "isomorphic-git": "^1.44.4"
+  }
+}

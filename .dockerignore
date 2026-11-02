@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env
+.env.*
+*.sqlite-shm
+*.sqlite-wal
+.env.example
+*.log
+remote_*
+test_*
+read_transcript.js
+working_ws_proxies.json

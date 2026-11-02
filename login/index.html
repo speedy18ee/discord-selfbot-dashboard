@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>EXC - Selfbot Dashboard Login</title>
+  <link rel="icon" type="image/jpeg" href="/assets/logo.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/css/style.css?v=6.0">
+  <link rel="stylesheet" href="/css/theme-assets.css?v=2.0">
+  <script src="/js/assets-fallback.js"></script>
+  <style>
+    /* =========================================================
+       ULTRA-PREMIUM AMOLED FROSTED GLASS SLIDE LOGIN UI
+       ========================================================= */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body, body.login-page {
+      background: #000000 url('/assets/background.jpg') no-repeat center center fixed !important;
+      background-size: cover !important;
+      color: #ffffff !important;
+      min-height: 100vh !important;
+      width: 100% !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 24px 16px !important;
+      position: relative !important;
+      overflow-x: hidden;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 0 !important;
+    }
+
+    /* Ambient animated neon glows */
+    .ambient-glow {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(140px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .glow-orb-1 {
+      width: 480px;
+      height: 480px;
+      background: radial-gradient(circle, rgba(168, 85, 247, 0.45) 0%, transparent 70%);
+      top: -120px;
+      left: 15%;
+      animation: floatOrb 12s ease-in-out infinite alternate;
+    }
+
+    .glow-orb-2 {
+      width: 520px;
+      height: 520px;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.35) 0%, transparent 70%);
+      bottom: -140px;
+      right: 10%;
+      animation: floatOrb 14s ease-in-out infinite alternate-reverse;
+    }
+
+    .glow-orb-3 {
+      width: 320px;
+      height: 320px;
+      background: radial-gradient(circle, rgba(236, 72, 153, 0.25) 0%, transparent 70%);
+      top: 45%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      animation: pulseOrb 8s ease-in-out infinite;
+    }
+
+    @keyframes floatOrb {
+      0% { transform: translateY(0px) scale(1); }
+      100% { transform: translateY(40px) scale(1.1); }
+    }
+
+    @keyframes pulseOrb {
+      0%, 100% { opacity: 0.2; transform: translate(-50%, -50%) scale(0.9); }
+      50% { opacity: 0.38; transform: translate(-50%, -50%) scale(1.15); }
+    }
+
+    /* Subtle futuristic grid overlay */
+    .cyber-grid {
+      position: fixed;
+      inset: 0;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 36px 36px;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Glass Slide Container - Centered Vertically & Horizontally */
+    .login-container {
+      width: 100%;
+      max-width: 440px;
+      margin: auto !important;
+      position: relative;
+      z-index: 10;
+    }
+
+    /* Frosted Glass Slide Card */
+    .login-box {
+      position: relative;
+      background: rgba(10, 10, 14, 0.72) !important;
+      backdrop-filter: blur(36px) saturate(190%) contrast(110%);
+      -webkit-backdrop-filter: blur(36px) saturate(190%) contrast(110%);
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+      border-radius: 28px;
+      padding: 42px 32px;
+      box-shadow: 
+        0 30px 80px rgba(0, 0, 0, 0.95),
+        0 0 50px rgba(168, 85, 247, 0.18),
+        inset 0 1px 1px rgba(255, 255, 255, 0.25);
+      text-align: center;
+      animation: glassSlideUp 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+      overflow: hidden;
+    }
+
+    /* Glass slide-up entrance animation */
+    @keyframes glassSlideUp {
+      0% {
+        opacity: 0;
+        transform: translateY(50px) scale(0.95);
+        filter: blur(12px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0px);
+      }
+    }
+
+    /* Animated gradient border reflection */
+    .login-box::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 200%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.8), rgba(255, 255, 255, 0.9), rgba(99, 102, 241, 0.8), transparent);
+      animation: glassLightSweep 4s ease-in-out infinite;
+    }
+
+    @keyframes glassLightSweep {
+      0% { transform: translateX(0%); }
+      100% { transform: translateX(100%); }
+    }
+
+    /* Floating Glowing Logo */
+    .logo-wrapper {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 18px;
+    }
+
+    .login-logo {
+      width: 84px;
+      height: 84px;
+      border-radius: 50% !important;
+      object-fit: cover !important;
+      aspect-ratio: 1 / 1 !important;
+      display: block;
+      border: 2.5px solid rgba(168, 85, 247, 0.85) !important;
+      box-shadow: 0 0 35px rgba(168, 85, 247, 0.65) !important;
+      animation: floatLogo 6s ease-in-out infinite alternate;
+    }
+
+    @keyframes floatLogo {
+      0% {
+        transform: translateY(0px);
+        box-shadow: 0 0 30px rgba(168, 85, 247, 0.55);
+      }
+      100% {
+        transform: translateY(-8px);
+        box-shadow: 0 14px 45px rgba(168, 85, 247, 0.85);
+      }
+    }
+
+    .status-dot-active {
+      position: absolute;
+      bottom: -3px;
+      right: -3px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #22c55e;
+      border: 3px solid #09090c;
+      box-shadow: 0 0 12px #22c55e;
+    }
+
+    /* Typography */
+    .brand-title {
+      font-family: 'Orbitron', 'Plus Jakarta Sans', sans-serif;
+      font-size: 1.85rem;
+      font-weight: 900;
+      letter-spacing: 2.5px;
+      background: linear-gradient(180deg, #ffffff 40%, #c084fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 6px;
+    }
+
+    .brand-subtitle {
+      font-size: 0.84rem;
+      color: #94a3b8;
+      margin-bottom: 22px;
+      line-height: 1.4;
+    }
+
+    /* Hardware ID Badge */
+    .hwid-chip {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.76rem;
+      background: rgba(168, 85, 247, 0.08);
+      border: 1px solid rgba(168, 85, 247, 0.28);
+      padding: 7px 16px;
+      border-radius: 30px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #e9d5ff;
+      margin-bottom: 22px;
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+      transition: all 0.2s ease;
+    }
+
+    .hwid-chip i {
+      color: #c084fc;
+      animation: pulseChip 2s infinite ease-in-out;
+    }
+
+    @keyframes pulseChip {
+      0%, 100% { opacity: 0.8; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.15); filter: drop-shadow(0 0 6px #c084fc); }
+    }
+
+    /* Already Logged In Session Card */
+    .already-logged-card {
+      background: rgba(34, 197, 94, 0.08) !important;
+      border: 1px solid rgba(34, 197, 94, 0.35) !important;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 22px;
+      text-align: left;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      animation: glassSlideUp 0.5s ease-out both;
+    }
+
+    /* Form Fields & Glass Inputs */
+    .form-group {
+      text-align: left;
+      margin-bottom: 18px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-bottom: 8px;
+      letter-spacing: 0.2px;
+    }
+
+    .token-input-wrapper {
+      position: relative;
+    }
+
+    .glass-input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04) !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+      border-radius: 14px !important;
+      padding: 14px 16px !important;
+      color: #ffffff !important;
+      font-size: 0.95rem;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    .glass-input::placeholder {
+      color: #64748b;
+    }
+
+    .glass-input:focus {
+      background: rgba(255, 255, 255, 0.07) !important;
+      border-color: #a855f7 !important;
+      box-shadow: 0 0 25px rgba(168, 85, 247, 0.35), inset 0 1px 2px rgba(255, 255, 255, 0.15) !important;
+      transform: translateY(-2px);
+    }
+
+    .btn-toggle-eye {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-toggle-eye:hover {
+      color: #ffffff;
+      transform: translateY(-50%) scale(1.1);
+    }
+
+    /* Error Alert */
+    .alert-error {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-size: 0.82rem;
+      margin-bottom: 18px;
+      text-align: left;
+      line-height: 1.4;
+      animation: shakeErr 0.3s ease-in-out;
+    }
+
+    @keyframes shakeErr {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+
+    /* Premium Shimmer Login Button */
+    .btn-glass-primary {
+      width: 100%;
+      background: linear-gradient(135deg, #9333ea, #7c3aed, #4f46e5);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 14px;
+      padding: 14px 20px;
+      font-weight: 800;
+      font-size: 0.96rem;
+      letter-spacing: 0.6px;
+      color: #ffffff;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(147, 51, 234, 0.45);
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .btn-glass-primary::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -60%;
+      width: 40%;
+      height: 200%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+      transform: rotate(25deg);
+      transition: none;
+    }
+
+    .btn-glass-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 40px rgba(147, 51, 234, 0.65);
+      border-color: rgba(255, 255, 255, 0.45);
+    }
+
+    .btn-glass-primary:hover::after {
+      left: 120%;
+      transition: left 0.8s ease-in-out;
+    }
+
+    /* Discord Buy Access Section */
+    .buy-section {
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      text-align: center;
+    }
+
+    .divider-text {
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: #94a3b8;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+    }
+
+    .btn-discord-buy {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      background: linear-gradient(135deg, rgba(88, 101, 242, 0.22) 0%, rgba(147, 51, 234, 0.22) 100%);
+      border: 1px solid rgba(88, 101, 242, 0.5);
+      border-radius: 14px;
+      padding: 13px 20px;
+      color: #ffffff !important;
+      font-weight: 700;
+      font-size: 0.92rem;
+      text-decoration: none;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 6px 22px rgba(88, 101, 242, 0.25);
+      cursor: pointer;
+    }
+
+    .btn-discord-buy i {
+      font-size: 1.2rem;
+      color: #818cf8;
+      transition: transform 0.25s ease;
+    }
+
+    .btn-discord-buy:hover {
+      background: linear-gradient(135deg, #5865f2 0%, #7c3aed 100%);
+      border-color: rgba(255, 255, 255, 0.45);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 35px rgba(88, 101, 242, 0.6);
+      color: #ffffff !important;
+    }
+
+    .btn-discord-buy:hover i {
+      color: #ffffff;
+      transform: scale(1.15) rotate(-5deg);
+    }
+
+    .buy-subtext {
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 10px;
+      line-height: 1.35;
+    }
+
+    .btn-glass-primary:active {
+      transform: scale(0.97);
+    }
+  </style>
+</head>
+<body class="dark-theme login-page">
+  <!-- Dynamic Ambient Glowing Orbs -->
+  <div class="ambient-glow glow-orb-1"></div>
+  <div class="ambient-glow glow-orb-2"></div>
+  <div class="ambient-glow glow-orb-3"></div>
+  <div class="cyber-grid"></div>
+
+  <div class="login-container">
+    <div class="login-box">
+      <!-- Animated Brand Logo -->
+      <div class="logo-wrapper">
+        <img src="/assets/logo.jpg" alt="EXC Logo" class="login-logo">
+        <div class="status-dot-active" title="System Online"></div>
+      </div>
+
+      <h1 class="brand-title">EXC SELFBOT</h1>
+      <p class="brand-subtitle">Enter your KeyAuth license key to access your selfbots</p>
+
+
+
+      <!-- Active Session Card (shown if already logged in) -->
+      <div id="already-logged-box" class="already-logged-card" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-weight: 700; color: #4ade80;"><i class="fa-solid fa-circle-check"></i> Already Logged In</span>
+          <span class="badge badge-primary" id="logged-quota-badge" style="font-size: 0.72rem; padding: 4px 8px; border-radius: 8px;">10 Bots Limit</span>
+        </div>
+        <div style="font-size: 0.88rem; color: #fff; margin-bottom: 4px;">
+          User: <strong id="logged-username" style="color: #c084fc;">-</strong>
+        </div>
+        <div style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 14px;">
+          Your credentials and bot quota are active on this device.
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <a href="/dashboard" class="btn btn-primary btn-block" style="text-decoration: none; text-align: center; padding: 10px; border-radius: 10px; font-weight: 700;">
+            <i class="fa-solid fa-gauge-high"></i> Go to Dashboard
+          </a>
+          <button type="button" class="btn btn-outline btn-danger-outline" onclick="logoutHere()" title="Switch Account" style="border-radius: 10px; padding: 0 14px;">
+            <i class="fa-solid fa-power-off"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- KeyAuth License Login Form -->
+      <form id="form-login" onsubmit="submitLogin(event)">
+        <div class="form-group">
+          <label><i class="fa-solid fa-key" style="color: #a855f7;"></i> KeyAuth License Key</label>
+          <div class="token-input-wrapper">
+            <input type="text" id="input-license-key" class="glass-input" placeholder="XXXX-XXXX-XXXX-XXXX" required autofocus autocomplete="off" style="letter-spacing: 1.5px; font-family: 'JetBrains Mono', monospace; font-weight: 600; text-align: center; text-transform: uppercase;">
+          </div>
+        </div>
+
+        <div id="login-error" class="alert-error" style="display: none;"></div>
+
+        <button type="submit" class="btn-glass-primary" id="btn-login-submit">
+          <i class="fa-solid fa-shield-halved"></i> Activate Key & Access Dashboard
+        </button>
+      </form>
+
+      <div class="buy-section">
+        <div class="divider-text">Need a License Key?</div>
+        <a href="https://discord.gg/mWdS7Hswuw" target="_blank" rel="noopener noreferrer" class="btn-discord-buy">
+          <i class="fa-brands fa-discord"></i> Get Key on Discord
+        </a>
+        <p class="buy-subtext">Purchase or renew your KeyAuth license key in our official Discord server.</p>
+        <div style="margin-top: 18px; text-align: center;">
+          <a href="/admin" style="font-size: 0.76rem; color: #64748b; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#c084fc'" onmouseout="this.style.color='#64748b'">
+            <i class="fa-solid fa-shield-halved"></i> EXC Admin & KeyAuth System
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/hwid.js?v=4.1"></script>
+  <script>
+    if (window.location.host.includes('cloudewave.in')) {
+      const _origFetch = window.fetch;
+      window.fetch = function(url, options) {
+        if (typeof url === 'string' && (url.startsWith('/api/') || url.startsWith('api/'))) {
+          const cleanPath = url.startsWith('/') ? url : '/' + url;
+          url = '/api/proxy.php?__path=' + encodeURIComponent(cleanPath);
+        }
+        return _origFetch(url, options);
+      };
+    }
+    let deviceHwid = null;
+    let deviceInfo = null;
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('logout') === '1') {
+        localStorage.removeItem('exc_user_token');
+      }
+
+      // 1. Calculate HWID
+      try {
+        deviceHwid = await window.getDeviceHwid();
+        deviceInfo = window.getDeviceInfo();
+        const shortHwid = deviceHwid.substring(0, 15) + '...';
+        // HWID generated silently in background
+      } catch (e) {
+        // HWID generated silently in background
+      }
+
+      // 2. Check if already logged in (only if not explicit logout)
+      if (urlParams.get('logout') !== '1') {
+        const existingToken = localStorage.getItem('exc_user_token');
+        if (existingToken) {
+          checkExistingAuth(existingToken);
+        }
+      }
+    });
+
+    async function checkExistingAuth(token) {
+      try {
+        const res = await fetch('/api/auth/me/', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success && data.user) {
+          document.getElementById('already-logged-box').style.display = 'block';
+          document.getElementById('logged-username').textContent = data.user.username;
+          const limit = data.user.botLimit || 10;
+          document.getElementById('logged-quota-badge').textContent = `${limit} Bots Limit`;
+        }
+      } catch (e) {}
+    }
+
+    // Password visibility toggle removed - KeyAuth Key system active
+
+    async function submitLogin(e) {
+      e.preventDefault();
+      const keyInput = document.getElementById('input-license-key');
+      const licenseKey = keyInput ? keyInput.value.trim().toUpperCase() : '';
+      const btn = document.getElementById('btn-login-submit');
+      const errBox = document.getElementById('login-error');
+
+      errBox.style.display = 'none';
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Validating Key...';
+
+      try {
+        if (!deviceHwid) {
+          deviceHwid = await window.getDeviceHwid();
+          deviceInfo = window.getDeviceInfo();
+        }
+
+        const res = await fetch('/api/auth/login/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            key: licenseKey,
+            hwid: deviceHwid,
+            deviceInfo
+          })
+        });
+
+        const data = await res.json();
+        if (data.success && data.token) {
+          localStorage.setItem('exc_user_token', data.token);
+          window.location.href = '/dashboard';
+        } else {
+          errBox.textContent = data.error || 'Invalid or expired KeyAuth license key.';
+          errBox.style.display = 'block';
+        }
+      } catch (err) {
+        errBox.textContent = 'Connection error: ' + err.message;
+        errBox.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-shield-halved"></i> Activate Key & Access Dashboard';
+      }
+    }
+
+    function logoutHere() {
+      const token = localStorage.getItem('exc_user_token');
+      if (token) {
+        fetch('/api/auth/logout/', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).catch(() => {});
+      }
+      localStorage.removeItem('exc_user_token');
+      document.getElementById('already-logged-box').style.display = 'none';
+      const keyInput = document.getElementById('input-license-key');
+      if (keyInput) keyInput.value = '';
+    }
+  </script>
+</body>
+</html>

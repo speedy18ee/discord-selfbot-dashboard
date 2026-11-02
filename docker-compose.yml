@@ -1,0 +1,22 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "24681:24681"
+    environment:
+      - PORT=24681
+      - NODE_ENV=production
+      - ADMIN_PASSWORD=speedy18ee
+      - MYSQL_HOST=91.99.159.222
+      - MYSQL_PORT=3306
+      - MYSQL_USER=u53933_TwKFrKq63U
+      - MYSQL_PASSWORD=r4n+QN4Oye+74YBEG7FUUai6
+      - MYSQL_DATABASE=s53933_speedy
+    volumes:
+      - app_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  app_data:

@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+node_modules/
+data/*
+*.log
+npm-debug.log*
+read_transcript.js
+remote_accounts.json
+remote_exc.sqlite
+working_ws_proxies.json

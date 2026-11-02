@@ -1,0 +1,1 @@
+<?php echo json_encode(["exec" => function_exists("exec"), "shell_exec" => function_exists("shell_exec"), "disabled" => ini_get("disable_functions")]); ?>

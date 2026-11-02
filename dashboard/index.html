@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>(function(){var t=localStorage.getItem("exc_user_token");if(!t){window.location.href="/login.html";}})();</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>EXC - Selfbot Controller</title>
+  <link rel="icon" type="image/jpeg" href="/assets/logo.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/css/style.css?v=3.0">
+  <script>
+    if (!localStorage.getItem('exc_user_token')) {
+      window.location.replace('/login');
+    }
+  </script>
+</head>
+<body class="dark-theme">
+  <!-- Ambient Neon Glows -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="ambient-glow glow-3"></div>
+
+  <!-- Mobile Top Header Bar -->
+  <div class="mobile-top-bar">
+    <div class="mobile-brand">
+      <img src="/assets/logo.jpg" alt="EXC" class="mobile-brand-img">
+      <div style="display: flex; flex-direction: column; line-height: 1.15;">
+        <span class="mobile-brand-name">EXC</span>
+        <span style="font-size: 0.68rem; color: #a1a1aa; font-weight: 600;" id="mobile-user-tag"><i class="fa-solid fa-circle-user" style="color: #a855f7;"></i> <span id="mobile-username-text">User</span></span>
+      </div>
+      <span class="badge" id="mobile-user-quota" style="font-size: 0.72rem; padding: 4px 8px; background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.4); color: #c084fc; font-weight: 700; margin-left: 4px;">
+        <i class="fa-solid fa-robot"></i> <span id="lbl-mobile-quota">0/10</span>
+      </span>
+    </div>
+    <div class="mobile-actions">
+      <button class="btn btn-sm btn-primary" onclick="openAddAccountModal()" title="Add Account" style="border-radius: 8px; width: 34px; height: 34px; padding: 0; display: flex; align-items: center; justify-content: center;">
+        <i class="fa-solid fa-plus"></i>
+      </button>
+      <button class="btn btn-sm btn-outline btn-quick-theme" onclick="switchTab('settings')" title="3D & Theme Studio" style="border-radius: 8px; width: 34px; height: 34px; padding: 0; display: flex; align-items: center; justify-content: center; border-color: rgba(168,85,247,0.4); color: #c084fc;"><i class="fa-solid fa-cube"></i></button>
+      <button class="btn btn-sm btn-outline btn-danger-outline" onclick="logoutEXC()" title="Logout" style="border-radius: 8px; width: 34px; height: 34px; padding: 0; display: flex; align-items: center; justify-content: center;">
+        <i class="fa-solid fa-power-off"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="app-layout">
+    <!-- Sidebar (Desktop) -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="/assets/logo.jpg" alt="EXC" class="brand-avatar-img">
+        <div class="brand-text">
+          <h2>EXC</h2>
+          <span class="badge-sub">1-Device HWID Protected</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="#overview" class="nav-item active" data-tab="overview">
+          <i class="fa-solid fa-gauge-high"></i>
+          <span>Overview</span>
+        </a>
+        <a href="#accounts" class="nav-item" data-tab="accounts">
+          <i class="fa-solid fa-users-gear"></i>
+          <span>Multi Accounts</span>
+          <span class="badge-count" id="badge-accounts-count">0</span>
+        </a>
+        <a href="#voice" class="nav-item" data-tab="voice">
+          <i class="fa-solid fa-tower-broadcast"></i>
+          <span>24/7 Voice Stay</span>
+        </a>
+        <a href="#music" class="nav-item" data-tab="music">
+          <i class="fa-solid fa-compact-disc"></i>
+          <span>Music Player</span>
+          <span class="pulse-dot" id="music-playing-dot" style="display:none;"></span>
+        </a>
+        <a href="#settings" class="nav-item" data-tab="settings">
+          <i class="fa-solid fa-sliders"></i>
+          <span>Settings</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-user-footer">
+        <div>
+          <div class="user-pill-tag">
+            <i class="fa-solid fa-circle-user"></i>
+            <span id="sidebar-user-name">User</span>
+          </div>
+          <div style="font-size: 0.74rem; color: #c084fc; font-weight: 700; margin-top: 4px; padding-left: 4px;" id="sidebar-user-quota">
+            <i class="fa-solid fa-robot"></i> <span id="lbl-sidebar-quota">0 / 10 Bots</span>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline btn-danger-outline" onclick="logoutEXC()" title="Logout">
+          <i class="fa-solid fa-power-off"></i>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top Header -->
+      <header class="top-header">
+        <div class="header-title">
+          <h1 id="page-title">Dashboard Overview</h1>
+          <p id="page-subtitle">Multi-Account Selfbot Controller & Audio Player</p>
+        </div>
+
+        <div class="header-actions">
+          <button class="btn btn-outline" id="btn-start-all">
+            <i class="fa-solid fa-play"></i> Start All
+          </button>
+          <button class="btn btn-outline btn-danger-outline" id="btn-stop-all">
+            <i class="fa-solid fa-stop"></i> Stop All
+          </button>
+          <button class="btn btn-outline" type="button" onclick="openMassVoiceTab()" title="Mass Voice: Connect all bots to VC" style="border-color: rgba(168, 85, 247, 0.45); color: #c084fc;">
+            <i class="fa-solid fa-users-rays"></i> All to VC
+          </button>
+          <button class="btn btn-outline" type="button" onclick="openTokenManagerModal()" title="Mass Token Manager: Paste all tokens in 1 way" style="border-color: #fbbf24; color: #fbbf24; font-weight: 700;">
+            <i class="fa-solid fa-key"></i> Token Manager
+          </button>
+          <button class="btn btn-primary" id="btn-open-add-bot">
+            <i class="fa-solid fa-plus"></i> Add Account
+          </button>
+        </div>
+      </header>
+
+      <!-- TAB 1: OVERVIEW -->
+      <section id="tab-overview" class="tab-pane active">
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon purple">
+              <i class="fa-solid fa-user-astronaut"></i>
+            </div>
+            <div class="stat-content">
+              <h3>Total Accounts</h3>
+              <div class="stat-value"><span id="stat-total-accounts">0</span><span style="font-size: 1.15rem; color: #71717a; font-weight: 400;"> / </span><span id="stat-limit-accounts" style="font-size: 1.25rem; color: #c084fc;">10</span></div>
+              <span class="stat-desc" id="stat-online-accounts">0 Online • 10 Bots Limit</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon green">
+              <i class="fa-solid fa-microphone-lines"></i>
+            </div>
+            <div class="stat-content">
+              <h3>24/7 Voice Connections</h3>
+              <div class="stat-value" id="stat-active-voice">0</div>
+              <span class="stat-desc">Channels Connected</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon blue">
+              <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div class="stat-content">
+              <h3>24/7 Stay</h3>
+              <div class="stat-value" id="stat-247-count">0</div>
+              <span class="stat-desc">Auto-Stay Configured</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon cyan">
+              <i class="fa-solid fa-music"></i>
+            </div>
+            <div class="stat-content">
+              <h3>Music Stream</h3>
+              <div class="stat-value" id="stat-music-active">Idle</div>
+              <span class="stat-desc" id="stat-music-track">Ready to play</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Accounts & Quick Controls Grid -->
+        <div class="dashboard-split" style="grid-template-columns: 1fr;">
+          <!-- Active Accounts Quick View -->
+          <div class="glass-panel panel-bots-summary">
+            <div class="panel-header">
+              <h2><i class="fa-solid fa-users"></i> Connected Selfbots</h2>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="btn btn-outline btn-sm" onclick="switchTab('music'); setTimeout(() => { document.getElementById('custom-audio-deck')?.scrollIntoView({ behavior: 'smooth' }); }, 150);" style="padding: 6px 12px; font-size: 0.8rem;">
+                  <i class="fa-solid fa-microphone"></i> Record / Play MP3
+                </button>
+                <button class="btn-link" onclick="switchTab('accounts')">Manage All &rarr;</button>
+              </div>
+            </div>
+            <div class="accounts-mini-list" id="overview-accounts-list">
+              <div class="empty-state">
+                <i class="fa-solid fa-ghost"></i>
+                <p>No accounts configured. Click <b>"Add Account"</b> to get started!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: MULTI ACCOUNTS -->
+      <section id="tab-accounts" class="tab-pane">
+        <div class="pane-action-bar">
+          <div class="search-input-wrapper">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="filter-accounts-input" placeholder="Search accounts by label, tag, or ID...">
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <div class="badge" id="badge-accounts-quota" style="padding: 9px 14px; font-size: 0.85rem; background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.35); color: #c084fc; font-weight: 700; white-space: nowrap;">
+              <i class="fa-solid fa-robot"></i> Plan Quota: <span id="lbl-quota-counter">0 / 10 Bots</span>
+            </div>
+            <button class="btn btn-outline" type="button" onclick="openTokenManagerModal()" title="Mass Token Manager: Paste all tokens in 1 way" style="border-color: #fbbf24; color: #fbbf24; font-weight: 700;">
+              <i class="fa-solid fa-key"></i> Mass Token Manager
+            </button>
+            <button class="btn btn-primary" id="btn-add-account-tab" onclick="openAddAccountModal()">
+              <i class="fa-solid fa-user-plus"></i> Add Account with Token
+            </button>
+          </div>
+        </div>
+
+        <!-- Accounts Grid -->
+        <div class="accounts-grid" id="accounts-grid-container">
+          <!-- Dynamically populated -->
+        </div>
+      </section>
+
+      <!-- TAB 3: 24/7 VOICE STAY -->
+      <section id="tab-voice" class="tab-pane">
+        <!-- Mass 24/7 Voice Control Card -->
+        <div class="card" id="mass-voice-card" style="margin-bottom: 22px; border: 1px solid rgba(168, 85, 247, 0.4); background: linear-gradient(180deg, rgba(22, 14, 38, 0.75) 0%, rgba(10, 10, 16, 0.85) 100%); box-shadow: 0 10px 30px rgba(0,0,0,0.6), 0 0 25px rgba(168, 85, 247, 0.15); border-radius: 20px;">
+          <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(255,255,255,0.07); padding: 16px 20px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:38px; height:38px; border-radius:12px; background:rgba(168, 85, 247, 0.2); display:flex; align-items:center; justify-content:center; border: 1px solid rgba(168, 85, 247, 0.4);">
+                <i class="fa-solid fa-users-rays" style="color: #c084fc; font-size:1.15rem;"></i>
+              </div>
+              <div>
+                <h3 style="margin:0; font-size:1.05rem; font-weight:800; color:#ffffff;">Mass Voice & 24/7 Stay</h3>
+                <span style="font-size:0.75rem; color:#94a3b8;">Connect ALL your bots to the same Voice Channel at once</span>
+              </div>
+            </div>
+            <span class="badge badge-primary" style="padding: 6px 12px; font-weight:700;"><i class="fa-solid fa-bolt"></i> All Bots</span>
+          </div>
+          <div class="card-body" style="padding: 18px 20px;">
+            <div style="display:grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 16px;">
+              <div>
+                <label style="font-size:0.82rem; font-weight:700; color:#e2e8f0; display:block; margin-bottom:6px;">
+                  <i class="fa-solid fa-hashtag" style="color:#c084fc;"></i> Voice Channel ID:
+                </label>
+                <div style="display:flex; gap:8px;">
+                  <input type="text" id="mass-vc-id" class="input-text" placeholder="Paste Voice Channel ID (e.g. 1546123281734696980)..." style="flex:1;">
+                  <button class="btn btn-outline" type="button" onclick="loadMassChannelSelector()" title="Pick from server list">
+                    <i class="fa-solid fa-list"></i> Select
+                  </button>
+                </div>
+              </div>
+
+              <!-- Channel Selector Dropdown (optional) -->
+              <div id="mass-channel-dropdown-box" style="display:none; background: rgba(0,0,0,0.45); border-radius:12px; padding:12px; border:1px solid rgba(255,255,255,0.08);">
+                <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:6px;">Or Pick from Discord Server List:</label>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                  <select id="mass-guild-select" class="input-select" onchange="onMassGuildChange()">
+                    <option value="">-- Choose Server --</option>
+                  </select>
+                  <select id="mass-channel-select" class="input-select" onchange="onMassChannelChange()">
+                    <option value="">-- Choose Channel --</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:center; padding: 4px 0;">
+                <label style="display:flex; align-items:center; gap:8px; font-size:0.84rem; cursor:pointer; color:#e2e8f0;">
+                  <input type="checkbox" id="mass-247-enabled" checked style="accent-color:#a855f7; width:17px; height:17px;">
+                  <span><b>Keep 24/7 Connected</b> (Auto-reconnect indefinitely)</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; font-size:0.84rem; cursor:pointer; color:#94a3b8;">
+                  <input type="checkbox" id="mass-self-mute" style="accent-color:#a855f7; width:15px; height:15px;">
+                  <span>Self-Mute</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; font-size:0.84rem; cursor:pointer; color:#94a3b8;">
+                  <input type="checkbox" id="mass-self-deaf" style="accent-color:#a855f7; width:15px; height:15px;">
+                  <span>Self-Deafen</span>
+                </label>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn btn-primary" id="btn-mass-join" onclick="executeMassJoinVoice()" style="flex:1; min-width:200px; padding:12px 18px; font-weight:800; font-size:0.92rem; box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);">
+                <i class="fa-solid fa-tower-broadcast"></i> Join All Bots to VC (24/7)
+              </button>
+              <button class="btn btn-outline btn-danger-outline" id="btn-mass-leave" onclick="executeMassLeaveVoice()" style="padding:12px 18px; font-weight:700;">
+                <i class="fa-solid fa-phone-slash"></i> Leave All
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Permanent Server Leave & Mass Guild Cleaner -->
+        <div class="card" id="permanent-leave-card" style="margin-bottom: 22px; border: 1px solid rgba(239, 68, 68, 0.4); background: linear-gradient(180deg, rgba(32, 14, 18, 0.85) 0%, rgba(12, 8, 10, 0.95) 100%); box-shadow: 0 10px 30px rgba(0,0,0,0.6), 0 0 25px rgba(239, 68, 68, 0.15); border-radius: 20px;">
+          <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(255,255,255,0.07); padding: 16px 20px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:38px; height:38px; border-radius:12px; background:rgba(239, 68, 68, 0.2); display:flex; align-items:center; justify-content:center; border: 1px solid rgba(239, 68, 68, 0.4);">
+                <i class="fa-solid fa-arrow-right-from-bracket" style="color: #ef4444; font-size:1.15rem;"></i>
+              </div>
+              <div>
+                <h3 style="margin:0; font-size:1.05rem; font-weight:800; color:#ffffff;">Permanent Server Leave & Cleaner</h3>
+                <span style="font-size:0.75rem; color:#94a3b8;">Safely leave any Discord server permanently across single or all bots</span>
+              </div>
+            </div>
+            <span class="badge badge-danger" style="padding: 6px 12px; font-weight:700;"><i class="fa-solid fa-shield-halved"></i> Proxy Protected</span>
+          </div>
+
+          <div class="card-body" style="padding: 18px 20px;">
+            <p style="font-size: 0.82rem; color: #cbd5e1; margin-bottom: 14px; line-height: 1.45;">
+              Leaves the selected Discord server permanently. Disconnects bots from voice, completely removes 24/7 reconnect rules, and routes API requests through proxy rotation with jitter delays to prevent account rate-limits or Discord flags.
+            </p>
+
+            <div style="display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 14px; margin-bottom: 16px;">
+              <div>
+                <label style="font-size:0.82rem; font-weight:700; color:#e2e8f0; display:block; margin-bottom:6px;">
+                  <i class="fa-solid fa-server" style="color:#ef4444;"></i> Select Server to Leave:
+                </label>
+                <div style="display:flex; gap:8px;">
+                  <select id="leave-guild-select" class="form-select" style="flex:1;">
+                    <option value="">-- Click "Refresh Servers" to load --</option>
+                  </select>
+                  <button class="btn btn-outline" type="button" onclick="loadGuildsForLeave()" title="Refresh joined servers">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label style="font-size:0.82rem; font-weight:700; color:#e2e8f0; display:block; margin-bottom:6px;">
+                  <i class="fa-solid fa-robot" style="color:#c084fc;"></i> Target Bots:
+                </label>
+                <select id="leave-bot-select" class="form-select">
+                  <option value="ALL_BOTS">👑 ALL BOTS (Mass Server Leave)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06);">
+              <label class="toggle-checkbox" style="font-size: 0.82rem; color: #cbd5e1; display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="leave-use-proxy-checkbox" checked>
+                <span><b>Route through Proxy Pool</b> (1,938 proxies loaded for IP & token protection)</span>
+              </label>
+
+              <button class="btn btn-outline btn-danger-outline" id="btn-submit-leave-guild" onclick="submitPermanentServerLeave()" style="padding: 12px 20px; font-weight: 700;">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i> Leave Server Permanently
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-banner">
+          <i class="fa-solid fa-circle-info"></i>
+          <div>
+            <h4>Per-Bot 24/7 Voice Stay</h4>
+            <p>You can also configure individual bots below. When <b>24/7 Stay</b> is active, bots automatically reconnect if kicked, moved, or disconnected.</p>
+          </div>
+        </div>
+
+        <div class="voice-manager-container" id="voice-manager-cards">
+          <!-- Dynamically populated per account -->
+        </div>
+      </section>
+
+      <!-- TAB 5: MUSIC PLAYER -->
+      <section id="tab-music" class="tab-pane">
+        <!-- Bot & Guild Selector Bar -->
+        <div class="music-selector-bar">
+          <div class="selector-group">
+            <label for="music-bot-select"><i class="fa-solid fa-robot"></i> Select Playing Bot:</label>
+            <select id="music-bot-select" class="form-select">
+              <option value="">-- Choose Account --</option>
+            </select>
+          </div>
+
+          <div class="selector-group">
+            <label for="music-guild-select"><i class="fa-solid fa-server"></i> Target Guild:</label>
+            <select id="music-guild-select" class="form-select">
+              <option value="">-- Choose Server --</option>
+            </select>
+          </div>
+
+          <div class="selector-group">
+            <label for="music-voice-select"><i class="fa-solid fa-microphone"></i> Voice Channel:</label>
+            <select id="music-voice-select" class="form-select">
+              <option value="">-- Choose Voice Channel --</option>
+            </select>
+          </div>
+
+          <div style="display: flex; gap: 8px; align-items: flex-end;">
+            <button class="btn btn-primary" id="btn-connect-music-voice" title="Connect selected bot to this voice channel">
+              <i class="fa-solid fa-plug"></i> Join Voice
+            </button>
+            <button class="btn btn-secondary" id="btn-connect-all-music-voice" style="background: linear-gradient(135deg, rgba(168,85,247,0.35), rgba(99,102,241,0.35)); border: 1px solid rgba(168,85,247,0.6); font-weight: 600;" title="Connect all your online bots to this voice channel">
+              <i class="fa-solid fa-users"></i> All Bots to VC
+            </button>
+          </div>
+        </div>
+
+        <div class="music-deck-grid">
+          <!-- Player Core Deck -->
+          <div class="glass-panel player-core-panel">
+            <!-- Search & Play Bar -->
+            <div class="music-search-bar">
+              <div class="search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="music-search-input" placeholder="Search track name, YouTube URL, Spotify URL, SoundCloud...">
+              </div>
+              <button class="btn btn-primary" id="btn-music-search">
+                <i class="fa-solid fa-play"></i> Search & Play
+              </button>
+              <button class="btn btn-outline" type="button" onclick="document.getElementById('custom-audio-deck').scrollIntoView({behavior:'smooth'}); if(window.customAudioStudio) customAudioStudio.switchTab('record');" title="Record Voice Audio">
+                <i class="fa-solid fa-microphone"></i> Record
+              </button>
+              <button class="btn btn-outline" type="button" onclick="document.getElementById('custom-audio-deck').scrollIntoView({behavior:'smooth'}); if(window.customAudioStudio) customAudioStudio.switchTab('upload');" title="Upload MP3 Audio File">
+                <i class="fa-solid fa-file-audio"></i> Upload MP3
+              </button>
+            </div>
+
+            <!-- Search Results Dropdown/Box -->
+            <div class="search-results-box" id="search-results-box" style="display:none;">
+              <div class="results-header">
+                <span>Top Results</span>
+                <button class="btn-close" onclick="closeSearchResults()">&times;</button>
+              </div>
+              <div class="results-list" id="search-results-list"></div>
+            </div>
+
+            <!-- Hero Now Playing Display -->
+            <div class="now-playing-hero">
+              <div class="artwork-wrapper">
+                <img id="now-playing-art" src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=400" alt="Artwork">
+                <div class="art-overlay" id="playing-visualizer">
+                  <div class="wave-bar"></div>
+                  <div class="wave-bar"></div>
+                  <div class="wave-bar"></div>
+                  <div class="wave-bar"></div>
+                  <div class="wave-bar"></div>
+                </div>
+              </div>
+
+              <div class="track-meta">
+                <span class="source-tag" id="track-source-tag">YouTube</span>
+                <h2 class="track-title" id="now-playing-title">No Track Playing</h2>
+                <h3 class="track-author" id="now-playing-author">Select a track or search above</h3>
+
+                <!-- Seekbar -->
+                <div class="seekbar-container">
+                  <span class="time-label" id="time-current">0:00</span>
+                  <div class="seekbar-track" id="seekbar-track">
+                    <div class="seekbar-fill" id="seekbar-fill"></div>
+                  </div>
+                  <span class="time-label" id="time-total">0:00</span>
+                </div>
+
+                <!-- Playback Controls -->
+                <div class="player-controls">
+                  <button class="control-btn" id="btn-loop-mode" title="Click to toggle Loop (OFF / TRACK / QUEUE)" style="min-width: 72px; padding: 6px 10px; border-radius: 12px; border: 1px solid rgba(168, 85, 247, 0.5); background: rgba(168, 85, 247, 0.15);">
+                    <i class="fa-solid fa-repeat" style="color: #c084fc;"></i>
+                    <span class="loop-indicator" id="loop-mode-text" style="font-size: 0.72rem; font-weight: 800; color: #ffffff;">LOOP: OFF</span>
+                  </button>
+                  <button class="control-btn play-main" id="btn-play-pause">
+                    <i class="fa-solid fa-play" id="icon-play-pause"></i>
+                  </button>
+                  <button class="control-btn" id="btn-skip" title="Skip Track">
+                    <i class="fa-solid fa-forward-step"></i>
+                  </button>
+                  <button class="control-btn" id="btn-sync-bots" title="Snap all bots to exact same track and millisecond">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                  </button>
+                  <button class="control-btn btn-danger-icon" id="btn-stop-track" title="Stop & Clear">
+                    <i class="fa-solid fa-stop"></i>
+                  </button>
+                </div>
+
+                
+                <!-- ═══ VOLUME & BASS COMMAND CONTROLLER (from dashboard & dashboard sb html) ═══ -->
+                <div class="audio-tweak-row" style="flex-direction: column; gap: 14px; width: 100%; padding: 12px; background: rgba(15, 10, 28, 0.75); border: 1px solid rgba(168, 85, 247, 0.28); border-radius: 16px;">
+                  <!-- Status & Live Volume Row -->
+                  <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span class="status-dot online-dot" id="music-status-dot" style="width: 10px; height: 10px; border-radius: 50%; background: #00e676; box-shadow: 0 0 10px #00e676; display: inline-block;"></span>
+                      <span style="font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; color: #cbd5e1;" id="music-status-text">CONNECTED</span>
+                      <div class="pill" style="background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.35); padding: 4px 10px; border-radius: 20px; font-size: 0.76rem; font-weight: 700; color: #c084fc;">
+                        🔊 <span class="val" id="vol-display" style="color: #fbbf24; font-weight: 800;">100%</span>
+                      </div>
+                    </div>
+
+                    <!-- Quick Volume Presets -->
+                    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                      <button type="button" class="btn btn-sm btn-outline" onclick="sendCmd('volume 100')" style="padding: 3px 8px; font-size: 0.72rem;">100%</button>
+                      <button type="button" class="btn btn-sm btn-outline" onclick="sendCmd('volume 500')" style="padding: 3px 8px; font-size: 0.72rem;">500%</button>
+                      <button type="button" class="btn btn-sm btn-outline" onclick="sendCmd('volume 1000')" style="padding: 3px 8px; font-size: 0.72rem;">1000%</button>
+                      <button type="button" class="btn btn-sm btn-outline" onclick="sendCmd('volume 5000')" style="padding: 3px 8px; font-size: 0.72rem; color: #fbbf24; border-color: rgba(251,191,36,0.4);">5000%</button>
+                      <button type="button" class="btn btn-sm btn-primary" onclick="sendCmd('max')" style="padding: 3px 10px; font-size: 0.72rem; background: linear-gradient(135deg, #ef4444, #dc2626); border-color: #ef4444; font-weight: 800;">💀 10000% MAX</button>
+                      <button type="button" class="btn btn-sm btn-primary" onclick="sendCmd('volume 20000')" style="padding: 3px 10px; font-size: 0.72rem; background: linear-gradient(135deg, #a855f7, #ec4899); border-color: #ec4899; font-weight: 800;">💥 20000%</button>
+                    </div>
+                  </div>
+
+                  <!-- Volume Slider Range (1% to 20,000%) -->
+                  <div class="volume-control" style="width: 100%; display: flex; align-items: center; gap: 10px;">
+                    <i class="fa-solid fa-volume-high" id="volume-icon" style="color: #fbbf24; font-size: 1.1rem;"></i>
+                    <input type="range" id="volume-slider" min="1" max="20000" step="100" value="100" title="Adjust Volume (1% - 20000%)" style="flex: 1; accent-color: #fbbf24;" oninput="onVolumeSliderChange(this.value)">
+                  </div>
+
+                  <!-- ═══ 14 QUICK COMMANDS GRID (from dashboard sb html) ═══ -->
+                  <div style="width: 100%; margin-top: 6px;">
+                    <div style="font-family: var(--font-mono); font-size: 0.76rem; letter-spacing: 2px; color: #a688e0; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">
+                      ⚡ Quick Commands
+                    </div>
+                    <div class="cmd-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 8px;">
+                      <div class="cmd-btn" onclick="sendCmd('stop')"><span class="cmd-icon">⏹️</span><span class="cmd-label">Stop</span></div>
+                      <div class="cmd-btn" onclick="sendCmd('pause')"><span class="cmd-icon">⏸️</span><span class="cmd-label">Pause</span></div>
+                      <div class="cmd-btn" onclick="sendCmd('resume')"><span class="cmd-icon">▶️</span><span class="cmd-label">Resume</span></div>
+                      <div class="cmd-btn" onclick="sendCmd('blast')"><span class="cmd-icon">🔥</span><span class="cmd-label">Blast</span></div>
+                      <div class="cmd-btn" onclick="sendCmd('doubleblast')"><span class="cmd-icon">💥</span><span class="cmd-label">Double</span></div>
+                      <div class="cmd-btn" onclick="sendCmd('superloud')"><span class="cmd-icon">🔊</span><span class="cmd-label">Super</span></div>
+                      <div class="cmd-btn" onclick="sendCmd('forceloud')"><span class="cmd-icon">⚡</span><span class="cmd-label">Force</span></div>
+                      <div class="cmd-btn" id="cmd-btn-bass" onclick="sendCmd('bassboost')"><span class="cmd-icon">🎵</span><span class="cmd-label">Bass</span></div>
+                      <div class="cmd-btn" onclick="sendCmd('pungi')"><span class="cmd-icon">🐍</span><span class="cmd-label">Pungi</span></div>
+                      <div class="cmd-btn" onclick="sendCmd('loudmode')"><span class="cmd-icon">📢</span><span class="cmd-label">Loud</span></div>
+                      <div class="cmd-btn" onclick="sendCmd('loop')"><span class="cmd-icon">🔄</span><span class="cmd-label">Loop</span></div>
+                      <div class="cmd-btn" onclick="sendCmd('leave')"><span class="cmd-icon">👋</span><span class="cmd-label">Leave</span></div>
+                      <div class="cmd-btn" onclick="sendCmd('max')"><span class="cmd-icon">💀</span><span class="cmd-label">Max</span></div>
+                      <div class="cmd-btn" onclick="sendCmd('status')"><span class="cmd-icon">📊</span><span class="cmd-label">Status</span></div>
+                    </div>
+                  </div>
+
+                  <!-- ═══ CUSTOM COMMAND BAR (from dashboard sb html) ═══ -->
+                  <div style="width: 100%; margin-top: 8px; background: rgba(10, 5, 20, 0.6); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 12px; padding: 12px;">
+                    <div style="font-family: var(--font-mono); font-size: 0.76rem; letter-spacing: 2px; color: #a688e0; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">
+                      ⌨️ Custom Command
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                      <input type="text" id="cmd-input" placeholder="play https://youtube.com/... or volume 15000 or channelId or help" onkeydown="if(event.key==='Enter') sendCustom()" style="flex: 1; background: #0a0514; color: #cbb8ff; border: 1px solid #2d1f4a; border-radius: 10px; padding: 10px 14px; font-family: var(--font-mono); font-size: 0.85rem;">
+                      <button class="btn btn-primary" onclick="sendCustom()" style="background: linear-gradient(135deg, #b57cff, #7c4dff); font-weight: 700; padding: 0 18px; letter-spacing: 1px;">
+                        Send ✦
+                      </button>
+                    </div>
+                    <div id="cmd-live-response" style="display: none; margin-top: 8px; font-family: var(--font-mono); font-size: 0.8rem; padding: 8px 12px; border-radius: 8px; background: rgba(0, 230, 118, 0.1); border: 1px solid rgba(0, 230, 118, 0.3); color: #00e676; white-space: pre-wrap;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            </div>
+          </div>
+
+          <!-- Queue Panel -->
+          <div class="glass-panel queue-panel">
+            <div class="panel-header">
+              <h2><i class="fa-solid fa-list-ol"></i> Up Next (<span id="queue-count">0</span>)</h2>
+              <button class="btn btn-sm btn-outline btn-danger-outline" id="btn-clear-queue">
+                <i class="fa-solid fa-trash"></i> Clear
+              </button>
+            </div>
+            <div class="queue-list" id="queue-items-container">
+              <div class="empty-state">
+                <i class="fa-solid fa-music"></i>
+                <p>Queue is currently empty</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom Audio Studio: Voice Recording & MP3 Player Deck -->
+        <div class="glass-panel custom-audio-deck" id="custom-audio-deck">
+          <div class="panel-header" style="margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(168, 85, 247, 0.2); border: 1px solid #a855f7; display: flex; align-items: center; justify-content: center; color: #c084fc; font-size: 1.1rem;">
+                <i class="fa-solid fa-microphone-lines"></i>
+              </div>
+              <div>
+                <h2 style="font-size: 1.15rem; margin: 0; color: #ffffff;">Play Songs via Voice Recording or MP3 Audios</h2>
+                <p style="margin: 2px 0 0; font-size: 0.8rem; color: #a1a1aa;">Record speech/audio directly or upload any local MP3 file to stream through your bot</p>
+              </div>
+            </div>
+            <span class="badge badge-success" style="background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; color: #4ade80;">Lavalink HQ Stream</span>
+          </div>
+
+          <!-- Studio Navigation Tabs -->
+          <div class="audio-studio-tabs">
+            <button class="audio-tab-btn active" data-audio-tab="record" type="button">
+              <i class="fa-solid fa-microphone"></i> Record Voice Audio
+            </button>
+            <button class="audio-tab-btn" data-audio-tab="upload" type="button">
+              <i class="fa-solid fa-file-audio"></i> Upload MP3 / Audio File
+            </button>
+            <button class="audio-tab-btn" data-audio-tab="url" type="button">
+              <i class="fa-solid fa-link"></i> Direct Audio URL
+            </button>
+          </div>
+
+          <!-- SUB-TAB 1: RECORD VOICE AUDIO -->
+          <div class="audio-tab-content" data-tab-content="record" style="display: block;">
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; background: #0c0c10; border: 1px solid #1c1c24; border-radius: 12px; gap: 14px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <span class="badge badge-warning" id="rec-status-badge">STANDBY</span>
+                <span id="rec-timer" style="font-family: monospace; font-size: 1.4rem; font-weight: 700; color: #ffffff; letter-spacing: 1px;">00:00</span>
+              </div>
+
+              <!-- Live VU Audio Level Meter -->
+              <div style="width: 100%; max-width: 400px; height: 8px; background: #16161c; border-radius: 4px; overflow: hidden; border: 1px solid #262630;">
+                <div id="rec-vu-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #22c55e, #a855f7, #ef4444); transition: width 0.05s ease;"></div>
+              </div>
+
+              <button class="btn btn-primary" id="btn-rec-toggle" type="button" style="padding: 12px 28px; font-size: 0.95rem; font-weight: 700; border-radius: 30px;">
+                <i class="fa-solid fa-microphone"></i> Start Recording Voice
+              </button>
+
+              <!-- Recording Preview & Controls -->
+              <div id="rec-preview-container" class="audio-preview-box" style="display: none; width: 100%; max-width: 520px;">
+                <div style="font-size: 0.82rem; font-weight: 600; color: #c084fc; margin-bottom: 6px;">
+                  <i class="fa-solid fa-circle-play"></i> Recorded Audio Preview:
+                </div>
+                <audio id="rec-audio-elem" controls style="width: 100%; border-radius: 8px;"></audio>
+                
+                <div class="form-group" style="margin-top: 12px;">
+                  <label style="font-size: 0.8rem; color: #a1a1aa;">Custom Audio Title:</label>
+                  <input type="text" class="form-input" id="rec-custom-title" placeholder="e.g. My Voice Message, Freestyle Voice Note...">
+                </div>
+
+                <div id="rec-action-row" style="display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+                  <button class="btn btn-primary" id="btn-rec-play-now" type="button" style="flex: 1;">
+                    <i class="fa-solid fa-play"></i> Play Now to Bot
+                  </button>
+                  <button class="btn btn-outline" id="btn-rec-queue" type="button" style="flex: 1;">
+                    <i class="fa-solid fa-plus"></i> Add to Queue
+                  </button>
+                  <button class="btn btn-outline btn-danger-outline" id="btn-rec-reset" type="button">
+                    <i class="fa-solid fa-trash"></i> Reset
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUB-TAB 2: UPLOAD MP3 FILE -->
+          <div class="audio-tab-content" data-tab-content="upload" style="display: none;">
+            <div class="file-dropzone" id="mp3-dropzone" onclick="document.getElementById('mp3-file-input').click()">
+              <input type="file" id="mp3-file-input" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac" style="display: none;">
+              <div class="file-dropzone-icon">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+              </div>
+              <h3 style="font-size: 1.05rem; margin: 0 0 4px; color: #ffffff;">Click to Select or Drag & Drop MP3 / Audio File</h3>
+              <p style="font-size: 0.82rem; color: #a1a1aa; margin: 0;">Supports MP3, WAV, OGG, M4A, AAC, FLAC (Up to 50MB)</p>
+            </div>
+
+            <!-- Upload Preview Card -->
+            <div id="upload-preview-container" class="audio-preview-box" style="display: none;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <i class="fa-solid fa-file-audio" style="color: #a855f7; font-size: 1.2rem;"></i>
+                  <span id="upload-file-name" style="font-weight: 700; color: #ffffff; font-size: 0.9rem;">audio.mp3</span>
+                </div>
+                <span id="upload-file-size" class="badge" style="background: #181820; border: 1px solid #333; color: #e2e8f0;">0.00 MB</span>
+              </div>
+
+              <audio id="upload-audio-elem" controls style="width: 100%; border-radius: 8px; margin-bottom: 12px;"></audio>
+
+              <div class="form-group">
+                <label style="font-size: 0.8rem; color: #a1a1aa;">Custom Song / Track Title:</label>
+                <input type="text" class="form-input" id="upload-custom-title" placeholder="Track title (defaults to filename)...">
+              </div>
+
+              <div style="margin-top: 10px; margin-bottom: 6px;">
+                <label class="toggle-checkbox" style="font-size: 0.82rem; color: #c084fc; display: flex; align-items: center; gap: 8px;">
+                  <input type="checkbox" id="custom-audio-loop-checkbox">
+                  <span><i class="fa-solid fa-repeat"></i> <b>Enable Continuous Loop</b> (Repeat this song forever)</span>
+                </label>
+              </div>
+
+              <div id="upload-action-row" style="display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+                <button class="btn btn-primary" id="btn-upload-play-now" type="button" style="flex: 1;">
+                  <i class="fa-solid fa-play"></i> Play Now to Bot
+                </button>
+                <button class="btn btn-outline" id="btn-upload-queue" type="button" style="flex: 1;">
+                  <i class="fa-solid fa-plus"></i> Add to Queue
+                </button>
+                <button class="btn btn-outline btn-danger-outline" id="btn-upload-reset" type="button">
+                  <i class="fa-solid fa-trash"></i> Discard
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUB-TAB 3: DIRECT AUDIO URL -->
+          <div class="audio-tab-content" data-tab-content="url" style="display: none;">
+            <div style="padding: 20px; background: #0c0c10; border: 1px solid #1c1c24; border-radius: 12px;">
+              <div class="form-group" style="margin-bottom: 14px;">
+                <label style="font-size: 0.82rem; color: #a1a1aa;"><i class="fa-solid fa-link"></i> Direct MP3 / Audio Stream URL:</label>
+                <input type="url" class="form-input" id="direct-audio-url" placeholder="https://example.com/song.mp3, Discord CDN attachment, or Raw audio link...">
+              </div>
+
+              <div class="form-group" style="margin-bottom: 16px;">
+                <label style="font-size: 0.82rem; color: #a1a1aa;">Track Name / Label:</label>
+                <input type="text" class="form-input" id="url-custom-title" placeholder="e.g. My Audio Stream, Discord Attachment...">
+              </div>
+
+              <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn btn-primary" id="btn-url-play-now" type="button" style="flex: 1;">
+                  <i class="fa-solid fa-play"></i> Play Stream Now
+                </button>
+                <button class="btn btn-outline" id="btn-url-queue" type="button" style="flex: 1;">
+                  <i class="fa-solid fa-plus"></i> Add to Queue
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- SAVED MP3 SONGS LIBRARY -->
+          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #1c1c24;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-folder-music" style="color: #a855f7;"></i>
+                <h3 style="font-size: 0.95rem; font-weight: 700; color: #ffffff; margin: 0;">Saved MP3 Songs Library</h3>
+              </div>
+              <button class="btn btn-outline btn-sm" type="button" onclick="if(window.customAudioStudio) window.customAudioStudio.loadSavedSongs();" title="Refresh library" style="padding: 4px 10px; font-size: 0.75rem;">
+                <i class="fa-solid fa-rotate"></i> Refresh
+              </button>
+            </div>
+            <div id="saved-mp3-list" style="display: flex; flex-direction: column; gap: 8px;">
+              <div style="color: #71717a; font-size: 0.85rem; text-align: center; padding: 16px;">Loading saved songs...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 5: SETTINGS -->
+      <section id="tab-settings" class="tab-pane">
+        <div class="settings-grid" style="grid-template-columns: 1fr; max-width: 700px;">
+          <!-- General System Settings -->
+          <div class="glass-panel">
+            <div class="panel-header">
+              <h2><i class="fa-solid fa-sliders"></i> General & Voice Settings</h2>
+            </div>
+            <div class="settings-form">
+              <div class="form-group">
+                <label class="toggle-checkbox">
+                  <input type="checkbox" id="cfg-auto-reconnect" checked>
+                  <span>Auto-reconnect bots on Voice Disconnect</span>
+                </label>
+              </div>
+
+              <div class="form-group">
+                <label>Reconnect Retry Delay (seconds)</label>
+                <input type="number" id="cfg-reconnect-delay" class="form-input" value="5" min="1" max="60">
+              </div>
+
+              <div class="form-group">
+                <label>Web Dashboard Port</label>
+                <input type="number" id="cfg-web-port" class="form-input" value="3000" disabled>
+                <small class="form-hint">Configured via environment or default 3000</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MODAL: ADD ACCOUNT -->
+  <div class="modal-overlay" id="modal-add-account">
+    <div class="modal-box glass-panel">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-key"></i> Add Discord Selfbot Account</h3>
+        <button class="modal-close" onclick="closeAddAccountModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Paste your Discord account user token below. The token will be safely stored locally on your machine and logged in directly without .env!</p>
+
+        <!-- Quick Switch to Mass Token Manager Banner -->
+        <div style="margin-bottom: 14px; padding: 10px 14px; border-radius: 10px; background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.35); display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+          <span style="font-size: 0.8rem; color: #fde68a;"><i class="fa-solid fa-layer-group" style="color: #fbbf24;"></i> Have multiple tokens? Add all at once in 1 click:</span>
+          <button type="button" class="btn btn-sm" onclick="closeAddAccountModal(); openTokenManagerModal();" style="padding: 4px 10px; font-size: 0.78rem; background: #fbbf24; color: #000; font-weight: 800; border-radius: 8px; border: none; cursor: pointer; white-space: nowrap;">
+            🔑 Token Manager
+          </button>
+        </div>
+
+        <!-- Account Quota Warning & Status Banner -->
+        <div id="modal-quota-banner" style="margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; background: rgba(168, 85, 247, 0.12); border: 1px solid rgba(168, 85, 247, 0.35); display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 0.85rem; color: #e4e4e7;"><i class="fa-solid fa-robot" style="color: #a855f7;"></i> Allowed Account Quota:</span>
+          <strong id="modal-quota-text" style="font-size: 0.9rem; color: #c084fc;">0 / 10 Bots Used</strong>
+        </div>
+
+        <div class="form-group">
+          <label>Account Label / Nickname</label>
+          <input type="text" id="add-bot-label" class="form-input" placeholder="e.g. My Main Selfbot, Alt 24/7">
+        </div>
+
+        <div class="form-group">
+          <label>Discord Account Token</label>
+          <div class="token-input-wrapper">
+            <input type="password" id="add-bot-token" class="form-input font-mono" placeholder="Paste Discord token here...">
+            <button type="button" class="btn-toggle-eye" id="btn-toggle-token-eye" onclick="toggleTokenVisibility()">
+              <i class="fa-solid fa-eye" id="eye-icon"></i>
+            </button>
+          </div>
+          <small class="form-hint">Supports standard Discord user tokens.</small>
+        </div>
+
+        <div class="form-group">
+          <label class="toggle-checkbox">
+            <input type="checkbox" id="add-bot-autostart" checked>
+            <span>Auto-connect on application start</span>
+          </label>
+        </div>
+
+        <div id="add-account-error" class="error-msg-box" style="display:none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeAddAccountModal()">Cancel</button>
+        <button class="btn btn-primary" id="btn-submit-add-account" onclick="submitAddAccount()">
+          <i class="fa-solid fa-plus"></i> Connect Account
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: TOKEN MANAGER (MASS TOKEN IMPORTER MATCHING SCREENSHOT) -->
+  <div class="modal-overlay" id="modal-token-manager" style="display: none; align-items: center; justify-content: center; z-index: 10000;">
+    <div class="modal-box token-manager-card" style="width: 100%; max-width: 520px; background: rgba(18, 19, 31, 0.96); border: 1px solid rgba(168, 85, 247, 0.35); box-shadow: 0 0 50px rgba(168, 85, 247, 0.25); border-radius: 24px; padding: 24px; position: relative; backdrop-filter: blur(20px);">
+      
+      <!-- Top Glowing Star Accent -->
+      <div style="text-align: center; margin-top: -6px; margin-bottom: 6px;">
+        <span style="color: #c084fc; font-size: 1.1rem; filter: drop-shadow(0 0 8px #a855f7);">✦</span>
+        <div style="width: 80px; height: 2px; background: linear-gradient(90deg, transparent, #a855f7, transparent); margin: 4px auto 14px;"></div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-key" style="color: #fbbf24; font-size: 1.1rem;"></i>
+          <h3 style="font-size: 0.95rem; font-weight: 800; letter-spacing: 2.5px; color: #94a3b8; text-transform: uppercase; margin: 0;">TOKEN MANAGER</h3>
+        </div>
+        <button class="modal-close" onclick="closeTokenManagerModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.4rem; cursor: pointer; line-height: 1;">&times;</button>
+      </div>
+
+      <!-- Cloud Persistence Status Badge -->
+      <div style="margin-bottom: 12px; padding: 6px 12px; border-radius: 8px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem;">
+        <span style="color: #6ee7b7; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+          <i class="fa-solid fa-cloud-arrow-up" style="color: #10b981;"></i> MongoDB Atlas Cloud Persistence
+        </span>
+        <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 0.68rem; padding: 2px 6px; border-radius: 4px; font-weight: 700;">PERMANENT STORAGE</span>
+      </div>
+
+      <div style="margin-bottom: 14px;">
+        <textarea id="token-manager-textarea" 
+                  class="font-mono" 
+                  placeholder="Paste all your Discord tokens here...&#10;One token per line:&#10;&#10;MTUyMjkx...&#10;MTUyMjk0...&#10;MTUwMTMx..." 
+                  rows="7"
+                  oninput="updateTokenManagerCounters()"
+                  style="width: 100%; padding: 14px; background: #0c0d16; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 14px; color: #ffffff; font-size: 0.82rem; line-height: 1.5; resize: vertical; outline: none; font-family: var(--font-mono); word-break: break-all;"></textarea>
+      </div>
+
+      <!-- Live Counters Row -->
+      <div style="display: flex; gap: 10px; margin-bottom: 18px; align-items: center; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 6px; padding: 6px 14px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 10px; font-size: 0.82rem; color: #cbd5e1; font-weight: 600;">
+          <span>📊</span> Tokens: <span id="tm-tokens-count" style="color: #c084fc; font-weight: 800; margin-left: 2px;">0</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; padding: 6px 14px; background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.35); border-radius: 10px; font-size: 0.82rem; color: #cbd5e1; font-weight: 600;">
+          <span>✅</span> Valid: <span id="tm-valid-count" style="color: #22c55e; font-weight: 800; margin-left: 2px;">0</span>
+        </div>
+        <div style="margin-left: auto; font-size: 0.78rem; color: #a1a1aa;" id="tm-quota-hint">
+          Plan Quota: <span id="tm-quota-text" style="color: #c084fc; font-weight: 700;">0/10</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons Matching User Screenshot -->
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button type="button" id="btn-tm-save" onclick="submitMassTokens()" style="width: 100%; padding: 13px; font-weight: 800; font-size: 0.95rem; border-radius: 14px; background: #fbbf24; color: #0f172a; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(251, 191, 36, 0.3); transition: transform 0.1s ease, filter 0.2s ease;">
+          <span style="font-size: 1.1rem;">💾</span> Save Tokens
+        </button>
+
+        <button type="button" id="btn-tm-load" onclick="loadSavedTokensIntoManager()" style="width: 100%; padding: 13px; font-weight: 700; font-size: 0.95rem; border-radius: 14px; background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #ffffff; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3); transition: transform 0.1s ease, filter 0.2s ease;">
+          <span style="font-size: 1.1rem;">📁</span> Load Saved
+        </button>
+      </div>
+
+      <div id="tm-status-msg" style="display: none; margin-top: 14px; padding: 10px 14px; border-radius: 10px; font-size: 0.82rem; line-height: 1.4;"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: EDIT PRESENCE / STATUS -->
+  <div class="modal-overlay" id="modal-edit-presence">
+    <div class="modal-box glass-panel">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-user-pen"></i> Customize Status & Rich Presence</h3>
+        <button class="modal-close" onclick="closePresenceModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="presence-account-id">
+        <div class="form-group">
+          <label>Online Status</label>
+          <select id="presence-status-select" class="form-select">
+            <option value="online">🟢 Online</option>
+            <option value="idle">🟡 Idle</option>
+            <option value="dnd">🔴 Do Not Disturb</option>
+            <option value="invisible">⚪ Invisible</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Activity Type</label>
+          <select id="presence-activity-type" class="form-select">
+            <option value="PLAYING">Playing</option>
+            <option value="STREAMING">Streaming</option>
+            <option value="LISTENING">Listening to</option>
+            <option value="WATCHING">Watching</option>
+            <option value="COMPETING">Competing in</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Activity Text / Name</label>
+          <input type="text" id="presence-activity-name" class="form-input" placeholder="e.g. 24/7 Lo-Fi Beats">
+        </div>
+
+        <div class="form-group" id="group-streaming-url" style="display:none;">
+          <label>Twitch / Stream URL</label>
+          <input type="text" id="presence-streaming-url" class="form-input" placeholder="https://twitch.tv/discord">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closePresenceModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitPresence()">
+          <i class="fa-solid fa-check"></i> Save Presence
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Bottom Navigation Bar -->
+  <nav class="mobile-bottom-nav">
+    <a href="#overview" class="mob-nav-item active" data-tab="overview">
+      <i class="fa-solid fa-gauge-high"></i>
+      <span>Home</span>
+    </a>
+    <a href="#accounts" class="mob-nav-item" data-tab="accounts">
+      <i class="fa-solid fa-users"></i>
+      <span>Bots</span>
+    </a>
+    <a href="#voice" class="mob-nav-item" data-tab="voice">
+      <i class="fa-solid fa-tower-broadcast"></i>
+      <span>24/7</span>
+    </a>
+    <a href="#music" class="mob-nav-item" data-tab="music">
+      <i class="fa-solid fa-compact-disc"></i>
+      <span>Music</span>
+    </a>
+    <a href="#settings" class="mob-nav-item" data-tab="settings">
+      <i class="fa-solid fa-sliders"></i>
+      <span>Config</span>
+    </a>
+  </nav>
+
+  <!-- EXC 1-DEVICE HWID LOGIN OVERLAY SCREEN -->
+  <div id="exc-login-overlay" style="display: none; position: fixed; inset: 0; z-index: 99999; background: rgba(8, 9, 14, 0.96); backdrop-filter: blur(25px); align-items: center; justify-content: center; padding: 20px;">
+    <div class="glass-panel login-card" style="width: 100%; max-width: 420px; padding: 36px 28px; text-align: center; border: 1px solid rgba(168, 85, 247, 0.4); box-shadow: 0 0 60px rgba(168, 85, 247, 0.25); border-radius: 20px;">
+      <div style="position: relative; display: inline-block; margin-bottom: 18px;">
+        <img src="/assets/logo.jpg" alt="EXC Logo" style="width: 90px; height: 90px; border-radius: 24px; object-fit: cover; border: 2px solid #a855f7; box-shadow: 0 0 35px rgba(168, 85, 247, 0.6);">
+        <div style="position: absolute; bottom: -4px; right: -4px; background: #22c55e; width: 18px; height: 18px; border-radius: 50%; border: 3px solid #0f1016;"></div>
+      </div>
+      
+      <h1 style="font-size: 2rem; font-weight: 800; color: #fff; letter-spacing: 1px; margin-bottom: 4px;">EXC</h1>
+      <p style="font-size: 0.84rem; color: var(--text-muted); margin-bottom: 22px;">HWID Protected 1-Device Selfbot Dashboard</p>
+
+      <form id="form-exc-login" onsubmit="handleKeyAuthLogin(event)">
+        <div class="form-group" style="text-align: left; margin-bottom: 18px;">
+          <label style="font-size: 0.85rem; color: #c084fc; font-weight: 600;"><i class="fa-solid fa-key"></i> KeyAuth License Key</label>
+          <div class="token-input-wrapper">
+            <input type="text" id="input-license-key" class="form-input" placeholder="XXXX-XXXX-XXXX-XXXX" required autofocus autocomplete="off" style="letter-spacing: 1.5px; font-family: var(--font-mono); font-weight: 600; text-align: center; text-transform: uppercase; background: rgba(0,0,0,0.5); border: 1px solid rgba(168,85,247,0.4); padding: 12px; font-size: 1rem; color: #fff; width: 100%; border-radius: 10px;">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="btn-login-submit" style="padding: 13px; font-weight: 700; font-size: 0.95rem; width: 100%; border-radius: 10px; background: #7c3aed; color: #fff; border: none; cursor: pointer;">
+          <i class="fa-solid fa-shield-halved"></i> Activate Key & Access Dashboard
+        </button>
+      </form>
+      <div style="margin-top: 18px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 14px;">
+        <div style="font-size: 0.78rem; color: var(--text-muted, #94a3b8); margin-bottom: 8px;">Need a License Key?</div>
+        <a href="https://discord.gg/mWdS7Hswuw" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 10px; background: rgba(88, 101, 242, 0.15); border: 1px solid rgba(88, 101, 242, 0.4); border-radius: 10px; color: #818cf8; font-weight: 600; text-decoration: none; font-size: 0.88rem;">
+          <i class="fa-brands fa-discord"></i> Get Key on Discord
+        </a>
+      </div>
+
+      <div id="login-error-msg" style="display: none; margin-top: 16px; padding: 12px; border-radius: 10px; background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; font-size: 0.84rem; line-height: 1.4; text-align: left;"></div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="/js/hwid.js?v=4.2"></script>
+  <script src="/js/app.js?v=4.3"></script>
+  <script src="/js/customAudio.js?v=4.2"></script>
+</body>
+</html>
