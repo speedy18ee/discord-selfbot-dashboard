@@ -2,6 +2,7 @@
  * Synchronous MySQL-to-SQLite Hydration Script
  * Invoked synchronously at boot before application modules are loaded.
  * Ensures the ephemeral container disk has the persistent state from Aiven MySQL.
+ * Fully supports multi-dashboard isolation via DASHBOARD_ID or INSTANCE_ID.
  */
 const fs = require('fs');
 const path = require('path');
@@ -48,6 +49,9 @@ async function run() {
     return;
   }
 
+  const dashboardId = (process.env.DASHBOARD_ID || process.env.INSTANCE_ID || '').trim();
+  const prefix = dashboardId ? `${dashboardId}_` : '';
+
   const mysql = require('mysql2/promise');
   let conn = null;
 
@@ -67,7 +71,7 @@ async function run() {
 
     const [rows] = await conn.query('SELECT `key`, `value` FROM app_state');
 
-    const sqlitePath = process.env.SQLITE_PATH || path.join(__dirname, '..', 'data', 'exc.sqlite');
+    const sqlitePath = process.env.SQLITE_PATH || path.join(__dirname, '..', 'data', dashboardId ? `exc_${dashboardId}.sqlite` : 'exc.sqlite');
     fs.mkdirSync(path.dirname(sqlitePath), { recursive: true });
     const db = new DatabaseSync(sqlitePath);
 
@@ -89,10 +93,24 @@ async function run() {
     `);
 
     if (rows && rows.length > 0) {
+      let count = 0;
       for (const row of rows) {
-        upsert.run(row.key, typeof row.value === 'string' ? row.value : JSON.stringify(row.value));
+        if (prefix) {
+          if (row.key.startsWith(prefix)) {
+            const rawKey = row.key.substring(prefix.length);
+            upsert.run(rawKey, typeof row.value === 'string' ? row.value : JSON.stringify(row.value));
+            count++;
+          }
+        } else {
+          // If no prefix configured for this instance, only load default (unprefixed) keys
+          const isPrefixed = row.key.includes('_accounts') || row.key.includes('_users') || row.key.includes('_licenses') || row.key.includes('_settings');
+          if (!isPrefixed) {
+            upsert.run(row.key, typeof row.value === 'string' ? row.value : JSON.stringify(row.value));
+            count++;
+          }
+        }
       }
-      console.log(`[BOOT_SYNC] Hydrated ${rows.length} keys from MySQL to SQLite cache.`);
+      console.log(`[BOOT_SYNC] Hydrated ${count} keys from MySQL to SQLite cache for [${dashboardId || 'default'}].`);
     } else {
       console.log('[BOOT_SYNC] MySQL app_state is empty; will seed from local files.');
     }

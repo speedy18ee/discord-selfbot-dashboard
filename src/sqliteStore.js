@@ -46,6 +46,8 @@ function parseMySQLConfig() {
 
 class SQLiteStore {
   constructor() {
+    this.dashboardId = (process.env.DASHBOARD_ID || process.env.INSTANCE_ID || '').trim();
+    this.keyPrefix = this.dashboardId ? `${this.dashboardId}_` : '';
     this.mysqlConfig = parseMySQLConfig();
     this.mysqlPool = null;
     this.mysqlConnected = false;
@@ -55,9 +57,10 @@ class SQLiteStore {
     // 1. Pre-hydrate SQLite from MySQL synchronously at boot if configured
     this.syncFromMySQLSync();
 
-    // 2. Initialize local SQLite
-    const databasePath = process.env.SQLITE_PATH || config.sqliteFile;
+    // 2. Initialize local SQLite (isolated by dashboard ID)
+    const databasePath = process.env.SQLITE_PATH || path.join(config.dataDir, this.dashboardId ? `exc_${this.dashboardId}.sqlite` : 'exc.sqlite');
     fs.mkdirSync(path.dirname(databasePath), { recursive: true });
+    this.databasePath = databasePath;
     this.db = new DatabaseSync(databasePath);
     this.db.exec(`
       PRAGMA journal_mode = WAL;
@@ -116,7 +119,8 @@ class SQLiteStore {
       this.ensureMySQLSchema()
         .then(() => {
           this.mysqlConnected = true;
-          logger.success('DB', `Connected to MySQL database [${this.mysqlConfig.database}] at ${this.mysqlConfig.host}:${this.mysqlConfig.port}`);
+          const instInfo = this.dashboardId ? ` [Instance: ${this.dashboardId}]` : '';
+          logger.success('DB', `Connected to MySQL database [${this.mysqlConfig.database}]${instInfo} at ${this.mysqlConfig.host}:${this.mysqlConfig.port}`);
           this.flushPendingWrites();
         })
         .catch(err => {
@@ -150,17 +154,19 @@ class SQLiteStore {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
-    // Also ensure relational accounts table for external inspection
+    // Ensure accounts table supports multi-dashboard isolation via dashboard_id
     await this.mysqlPool.query(`
       CREATE TABLE IF NOT EXISTS accounts (
-        \`id\` VARCHAR(64) PRIMARY KEY,
+        \`id\` VARCHAR(64),
+        \`dashboard_id\` VARCHAR(64) DEFAULT 'default',
         \`owner_id\` VARCHAR(64),
         \`label\` VARCHAR(255),
         \`token\` VARCHAR(255),
         \`status\` VARCHAR(32),
         \`auto_start\` BOOLEAN DEFAULT TRUE,
         \`created_at\` VARCHAR(64),
-        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (\`id\`, \`dashboard_id\`)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
   }
@@ -191,12 +197,13 @@ class SQLiteStore {
 
   setJSON(key, value) {
     const jsonStr = JSON.stringify(value);
-    // 1. Write immediately to SQLite (synchronous, 0ms)
+    // 1. Write immediately to local SQLite
     this.writeStatement.run(key, jsonStr);
 
-    // 2. Persist to MySQL
+    // 2. Persist to MySQL under dashboard-isolated key
     if (this.mysqlPool) {
-      this.pushToMySQL(key, jsonStr, value);
+      const mysqlKey = `${this.keyPrefix}${key}`;
+      this.pushToMySQL(mysqlKey, jsonStr, value);
     }
   }
 
@@ -208,8 +215,8 @@ class SQLiteStore {
       );
       this.mysqlConnected = true;
 
-      // Relational sync for accounts table
-      if (key === 'accounts' && Array.isArray(rawValue)) {
+      // Relational sync for accounts table if saving accounts
+      if (key.endsWith('accounts') && Array.isArray(rawValue)) {
         await this.syncRelationalAccounts(rawValue);
       }
     } catch (err) {
@@ -222,12 +229,13 @@ class SQLiteStore {
 
   async syncRelationalAccounts(accounts) {
     if (!this.mysqlPool || !Array.isArray(accounts)) return;
+    const tag = this.dashboardId || 'default';
     try {
       for (const a of accounts) {
         if (!a || !a.id) continue;
         await this.mysqlPool.query(
-          `INSERT INTO accounts (\`id\`, \`owner_id\`, \`label\`, \`token\`, \`status\`, \`auto_start\`, \`created_at\`, \`updated_at\`)
-           VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+          `INSERT INTO accounts (\`id\`, \`dashboard_id\`, \`owner_id\`, \`label\`, \`token\`, \`status\`, \`auto_start\`, \`created_at\`, \`updated_at\`)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
            ON DUPLICATE KEY UPDATE
              \`owner_id\` = VALUES(\`owner_id\`),
              \`label\` = VALUES(\`label\`),
@@ -237,6 +245,7 @@ class SQLiteStore {
              \`updated_at\` = NOW()`,
           [
             a.id,
+            tag,
             a.ownerId || 'default',
             a.label || 'Bot Account',
             a.token || '',
@@ -268,7 +277,7 @@ class SQLiteStore {
           'INSERT INTO app_state (`key`, `value`, `updated_at`) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), `updated_at` = NOW()',
           [key, item.jsonStr]
         );
-        if (key === 'accounts' && Array.isArray(item.rawValue)) {
+        if (key.endsWith('accounts') && Array.isArray(item.rawValue)) {
           await this.syncRelationalAccounts(item.rawValue);
         }
         this.pendingWrites.delete(key);
@@ -289,8 +298,19 @@ class SQLiteStore {
       const [rows] = await this.mysqlPool.query('SELECT `key`, `value` FROM app_state');
       if (rows && rows.length > 0) {
         for (const row of rows) {
-          const valStr = typeof row.value === 'string' ? row.value : JSON.stringify(row.value);
-          this.writeStatement.run(row.key, valStr);
+          if (this.keyPrefix) {
+            if (row.key.startsWith(this.keyPrefix)) {
+              const rawKey = row.key.substring(this.keyPrefix.length);
+              const valStr = typeof row.value === 'string' ? row.value : JSON.stringify(row.value);
+              this.writeStatement.run(rawKey, valStr);
+            }
+          } else {
+            const isPrefixed = row.key.includes('_accounts') || row.key.includes('_users') || row.key.includes('_licenses') || row.key.includes('_settings');
+            if (!isPrefixed) {
+              const valStr = typeof row.value === 'string' ? row.value : JSON.stringify(row.value);
+              this.writeStatement.run(row.key, valStr);
+            }
+          }
         }
         this.mysqlConnected = true;
         return true;
@@ -305,8 +325,9 @@ class SQLiteStore {
   getStatus() {
     return {
       connected: this.mysqlConnected,
+      dashboardId: this.dashboardId || 'default',
       provider: this.mysqlPool ? 'Aiven MySQL + SQLite Cache' : 'SQLite Local',
-      database: this.mysqlConfig ? this.mysqlConfig.database : (process.env.SQLITE_PATH || config.sqliteFile),
+      database: this.mysqlConfig ? this.mysqlConfig.database : this.databasePath,
       host: this.mysqlConfig ? this.mysqlConfig.host : 'local',
       port: this.mysqlConfig ? this.mysqlConfig.port : null,
       ssl: this.mysqlConfig ? !!this.mysqlConfig.ssl : false
