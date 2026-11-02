@@ -32,5 +32,5 @@ RUN mkdir -p /app/data
 # Expose web server port
 EXPOSE 24681
 
-# Start server with expanded heap and non-fatal rejection handling to prevent restarts
+# Start server
 CMD ["node", "--max-old-space-size=450", "--unhandled-rejections=warn", "server.js"]

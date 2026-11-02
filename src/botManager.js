@@ -18,35 +18,26 @@ let proxyRotationIndex = 0;
 
 function loadFreeProxies() {
   try {
-    const candidatePaths = [
-      path.join(__dirname, "..", "free_proxies.txt"),
-      path.join(__dirname, "..", "data", "free_proxies.txt"),
-      path.join(__dirname, "free_proxies.txt"),
-      path.join(__dirname, "..", "free-proxy-list (8).txt"),
-      path.join(__dirname, "..", "working_ws_proxies.json")
-    ];
-    let loaded = [];
-    for (const p of candidatePaths) {
-      if (fs.existsSync(p)) {
-        if (p.endsWith('.json')) {
-          try {
-            const data = JSON.parse(fs.readFileSync(p, "utf8"));
-            if (Array.isArray(data)) loaded.push(...data);
-          } catch (_) {}
-        } else {
-          try {
-            const raw = fs.readFileSync(p, "utf8")
-              .split(/\r?\n/)
-              .map(s => s.trim())
-              .filter(s => s && s.includes(":"));
-            loaded.push(...raw);
-          } catch (_) {}
-        }
+    const pPath = path.join(__dirname, "..", "data", "free_proxies.txt");
+    if (fs.existsSync(pPath)) {
+      const raw = fs.readFileSync(pPath, "utf8")
+        .split(/\r?\n/)
+        .map(s => s.trim())
+        .filter(s => s && s.includes(":"));
+      if (raw.length > 0) {
+        freeProxiesList = Array.from(new Set(raw));
+        logger.info("PROXY", `🛡️ Loaded ${freeProxiesList.length} proxies from free_proxies.txt for token safety & 24/7 uptime`);
+        return;
       }
     }
-    if (loaded.length > 0) {
-      freeProxiesList = Array.from(new Set(loaded));
-      logger.info("PROXY", `🛡️ Loaded ${freeProxiesList.length} proxies from pool for token safety & 24/7 uptime`);
+    const wsProxiesPath = path.join(__dirname, "..", "working_ws_proxies.json");
+    if (fs.existsSync(wsProxiesPath)) {
+      const data = JSON.parse(fs.readFileSync(wsProxiesPath, "utf8"));
+      if (Array.isArray(data) && data.length > 0) {
+        freeProxiesList = data;
+        logger.info("PROXY", `Loaded ${freeProxiesList.length} proxies from working_ws_proxies.json for rate-limit & token protection`);
+        return;
+      }
     }
   } catch (e) {
     logger.warn("PROXY", `Could not load proxies: ${e.message}`);
@@ -151,20 +142,15 @@ class BotManager extends EventEmitter {
             const isOnline = entry && (entry.status === "online" || entry.status === "connecting");
 
             if (!isOnline && (!entry || !entry.userStopped)) {
-              const errStr = (entry?.error || '').toLowerCase();
-              if (errStr.includes("token_invalid") || errStr.includes("invalid token") || errStr.includes("4004") || errStr.includes("an invalid token")) {
-                continue;
-              }
-              if ((entry?.failCount || 0) >= 3) {
+              if (entry && entry.error && (entry.error.includes("TOKEN_INVALID") || entry.error.includes("invalid token") || entry.error.includes("4004"))) {
                 continue;
               }
 
               const now = Date.now();
-              if (!acc._lastWatchdogStart || (now - acc._lastWatchdogStart) > 60000) {
+              if (!acc._lastWatchdogStart || (now - acc._lastWatchdogStart) > 18000) {
                 acc._lastWatchdogStart = now;
-                logger.info("WATCHDOG", `[24/7 Keep-Alive] Account ${acc.label} is offline. Auto-starting...`);
+                logger.info("WATCHDOG", `[24/7 Keep-Alive] Account ${acc.label} is offline. Auto-starting immediately...`);
                 this.startAccount(acc.id).catch(err => {
-                  if (entry) entry.failCount = (entry.failCount || 0) + 1;
                   logger.warn("WATCHDOG", `[24/7 Keep-Alive] Auto-start for ${acc.label}: ${err.message}`);
                 });
               }
@@ -216,14 +202,6 @@ class BotManager extends EventEmitter {
     // If account has an explicit dedicated proxy configured, allow it as backup
     if (acc.proxy && acc.proxy.trim() && !isOldDeadProxy(acc.proxy)) {
       candidateProxies.push(acc.proxy.trim());
-    }
-
-    // Add rotating proxies from user-provided pool as failover when Direct gets rate-limited!
-    for (let r = 0; r < 4; r++) {
-      const rot = getNextRotatingProxy();
-      if (rot && !candidateProxies.includes(rot)) {
-        candidateProxies.push(rot);
-      }
     }
 
     let lastError = null;
@@ -326,7 +304,6 @@ class BotManager extends EventEmitter {
     client.on("ready", async () => {
       botEntry.status = "online";
       botEntry.error = null;
-      botEntry.failCount = 0;
       botEntry.ping = client.ws.ping;
       logger.success("BOT", `Account connected: ${client.user.tag} (ID: ${client.user.id}) [${proxy ? 'Proxy: ' + proxy.replace(/:[^:]*@/, ':****@') : 'Direct'}]`);
 
@@ -358,8 +335,6 @@ class BotManager extends EventEmitter {
             guildId: acc.voice247.guildId,
             selfMute: acc.voice247.selfMute,
             selfDeaf: acc.voice247.selfDeaf
-          }).catch(err => {
-            logger.warn("24/7", `Auto-rejoin error for ${acc.label}: ${err.message}`);
           });
         }, 2000);
       }
@@ -436,8 +411,6 @@ class BotManager extends EventEmitter {
                   guildId: currentAcc.voice247.guildId,
                   selfMute: currentAcc.voice247.selfMute,
                   selfDeaf: currentAcc.voice247.selfDeaf
-                }).catch(err => {
-                  logger.warn("24/7", `Voice reconnect error for ${currentAcc.label}: ${err.message}`);
                 });
               }, 5000);
             }
@@ -449,7 +422,7 @@ class BotManager extends EventEmitter {
     });
 
     client.on("debug", (info) => {
-      if (process.env.DEBUG_DISCORD === 'true' && typeof info === 'string') {
+      if (typeof info === 'string') {
         if (info.includes("Heartbeat") || info.includes("heartbeat")) return;
         if (info.includes("WS") || info.includes("Gateway") || info.includes("Session") || info.includes("Connecting") || info.includes("Handshake") || info.includes("4004") || info.includes("4000")) {
           logger.info("BOT_DEBUG", `[${acc.label}] ${info}`);

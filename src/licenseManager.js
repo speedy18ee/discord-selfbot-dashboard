@@ -70,10 +70,6 @@ class LicenseManager {
    */
   generateKeyString(mask = 'EXC-XXXX-XXXX-XXXX') {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    if (mask.startsWith('EXC-')) {
-      const rest = mask.slice(4).replace(/X/g, () => chars[Math.floor(Math.random() * chars.length)]);
-      return 'EXC-' + rest;
-    }
     return mask.replace(/X/g, () => chars[Math.floor(Math.random() * chars.length)]);
   }
 
