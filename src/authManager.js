@@ -355,6 +355,40 @@ class AuthManager {
       return null;
     }
 
+    // --- ENFORCE KEY EXISTENCE: IF KEY WAS DELETED, TERMINATE SESSION IMMEDIATELY ---
+    const sessionKey = (session.key || '').trim().toUpperCase();
+    if (!sessionKey) {
+      this.sessions.delete(token);
+      this.saveSessions();
+      return null;
+    }
+
+    const license = licenseManager.licenses.find(l => l.key.toUpperCase() === sessionKey);
+    if (!license) {
+      logger.warn('AUTH', `Session rejected: License key "${sessionKey}" no longer exists in system.`);
+      this.sessions.delete(token);
+      this.saveSessions();
+      return null;
+    }
+
+    if (license.status === 'banned') {
+      logger.warn('AUTH', `Session rejected: License key "${sessionKey}" is banned.`);
+      this.sessions.delete(token);
+      this.saveSessions();
+      return null;
+    }
+
+    if (license.expiry) {
+      const expDate = new Date(license.expiry);
+      if (Date.now() > expDate.getTime()) {
+        license.status = 'expired';
+        licenseManager.saveLicenses(false);
+        this.sessions.delete(token);
+        this.saveSessions();
+        return null;
+      }
+    }
+
     const liveUser = this.users.find(u => u.id === session.userId);
     const licenseBotLimit = licenseManager.getBotLimit(session.key);
     if (licenseBotLimit !== null) {
@@ -370,6 +404,72 @@ class AuthManager {
       session.subscription = liveUser.subscription || session.subscription || 'default';
     }
     return session;
+  }
+
+  /**
+   * Invalidate all sessions and remove user records for a deleted key or user ID
+   */
+  invalidateKey(keyOrId) {
+    if (!keyOrId) return { terminatedSessions: 0, affectedUserIds: [], affectedKeys: [] };
+    const target = String(keyOrId).trim().toUpperCase();
+
+    // 1. Identify and remove any user matching key or id
+    const affectedUserIds = new Set();
+    const affectedKeys = new Set();
+    if (target) affectedKeys.add(target);
+
+    this.users = this.users.filter(u => {
+      const matchKey = u.key && u.key.toUpperCase() === target;
+      const matchId = u.id && (u.id === keyOrId || u.id.toUpperCase() === target);
+      const matchUsername = u.username && u.username.toUpperCase() === target;
+      if (matchKey || matchId || matchUsername) {
+        if (u.id) affectedUserIds.add(u.id);
+        if (u.key) affectedKeys.add(u.key.toUpperCase());
+        return false;
+      }
+      return true;
+    });
+    this.saveUsers();
+
+    // 2. Identify and terminate all active sessions for this key or userId
+    let terminatedSessions = 0;
+    for (const [token, session] of Array.from(this.sessions.entries())) {
+      const sessionKey = (session.key || '').toUpperCase();
+      const matchKey = affectedKeys.has(sessionKey) || sessionKey === target;
+      const matchUser = session.userId && (affectedUserIds.has(session.userId) || session.userId === keyOrId);
+      const matchUsername = session.username && (session.username.toUpperCase() === target);
+
+      if (matchKey || matchUser || matchUsername) {
+        this.sessions.delete(token);
+        terminatedSessions++;
+      }
+    }
+    this.saveSessions();
+
+    // 3. Clear user_limits.json if present
+    try {
+      const limitsPath = path.join(config.dataDir, 'user_limits.json');
+      if (fs.existsSync(limitsPath)) {
+        const limitsMap = JSON.parse(fs.readFileSync(limitsPath, 'utf8'));
+        let changed = false;
+        for (const k of Object.keys(limitsMap)) {
+          if (affectedKeys.has(k.toUpperCase()) || k.toUpperCase() === target || affectedUserIds.has(k)) {
+            delete limitsMap[k];
+            changed = true;
+          }
+        }
+        if (changed) {
+          fs.writeFileSync(limitsPath, JSON.stringify(limitsMap, null, 2), 'utf8');
+        }
+      }
+    } catch (_) {}
+
+    logger.info('AUTH', `Invalidated key/user "${keyOrId}": purged ${terminatedSessions} active session(s), removed ${affectedUserIds.size} user account(s).`);
+    return {
+      terminatedSessions,
+      affectedUserIds: Array.from(affectedUserIds),
+      affectedKeys: Array.from(affectedKeys)
+    };
   }
 
   logout(token) {

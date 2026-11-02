@@ -268,11 +268,66 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
   });
 });
 
+// Unified permanent key/user deletion with immediate logout & bot cleanup
+async function handlePermanentDeleteKeyOrUser(keyOrId) {
+  if (!keyOrId) throw new Error('Target ID or key required');
+
+  // 1. Delete license from LicenseManager (checks by id or key)
+  const removedLic = licenseManager.deleteLicense(keyOrId);
+  const targetKey = removedLic ? removedLic.key : keyOrId;
+
+  // 2. Invalidate sessions and delete matching users in AuthManager
+  const authPurge = authManager.invalidateKey(targetKey);
+  if (removedLic && removedLic.id !== targetKey) {
+    authManager.invalidateKey(removedLic.id);
+  }
+  if (keyOrId !== targetKey) {
+    authManager.invalidateKey(keyOrId);
+  }
+
+  const affectedUserIds = new Set(authPurge.affectedUserIds || []);
+  const affectedKeys = new Set(authPurge.affectedKeys || []);
+  if (targetKey) affectedKeys.add(String(targetKey).toUpperCase());
+  if (removedLic && removedLic.key) affectedKeys.add(removedLic.key.toUpperCase());
+
+  // 3. Immediately kick out any connected WebSocket client matching this key or user
+  wss.clients.forEach(client => {
+    const matchUser = client.userId && (affectedUserIds.has(client.userId) || client.userId === keyOrId);
+    const matchKey = client.key && (affectedKeys.has(client.key.toUpperCase()) || client.key.toUpperCase() === String(keyOrId).toUpperCase());
+    if (matchUser || matchKey) {
+      try {
+        client.send(JSON.stringify({
+          type: 'logout',
+          data: { reason: 'Your license key was permanently deleted by an administrator.' }
+        }));
+        client.close(4001, 'License key deleted');
+      } catch (_) {}
+    }
+  });
+
+  // 4. Stop all running bots and clean up accounts belonging to affected user(s)
+  for (const uid of affectedUserIds) {
+    try {
+      if (global.botManager) {
+        await global.botManager.stopAll(uid);
+      }
+      database.deleteAccountsByOwner(uid);
+    } catch (e) {
+      logger.warn('BOT', `Error cleaning accounts for deleted user ${uid}: ${e.message}`);
+    }
+  }
+
+  // 5. Broadcast to admin sockets so admin dashboard updates live
+  broadcast('adminKeyDeleted', { key: targetKey, userIds: Array.from(affectedUserIds) });
+
+  return { success: true, removedLicense: removedLic, purged: authPurge };
+}
+
 app.get('/api/admin/licenses', requireAdmin, (req, res) => {
   res.json({ success: true, licenses: licenseManager.getAll() });
 });
 
-app.post('/api/admin/licenses', requireAdmin, (req, res) => {
+app.post('/api/admin/licenses', requireAdmin, async (req, res) => {
   try {
     const { action = 'create', id, amount, mask, days, botLimit, note } = req.body;
     if (action === 'create') {
@@ -294,8 +349,8 @@ app.post('/api/admin/licenses', requireAdmin, (req, res) => {
       return res.json({ success: true, status });
     }
     if (action === 'delete') {
-      if (!licenseManager.deleteLicense(id)) throw new Error('License not found');
-      return res.json({ success: true });
+      await handlePermanentDeleteKeyOrUser(id);
+      return res.json({ success: true, message: 'License key permanently deleted and active sessions logged out.' });
     }
     throw new Error('Unsupported license action');
   } catch (err) {
@@ -303,7 +358,7 @@ app.post('/api/admin/licenses', requireAdmin, (req, res) => {
   }
 });
 
-app.post('/api/admin/users', requireAdmin, (req, res) => {
+app.post('/api/admin/users', requireAdmin, async (req, res) => {
   try {
     const { action, id, botLimit } = req.body;
     if (action === 'limit') {
@@ -315,8 +370,8 @@ app.post('/api/admin/users', requireAdmin, (req, res) => {
       return res.json({ success: true });
     }
     if (action === 'delete') {
-      if (!licenseManager.deleteLicense(id)) throw new Error('License not found');
-      return res.json({ success: true });
+      await handlePermanentDeleteKeyOrUser(id);
+      return res.json({ success: true, message: 'User account and license permanently deleted and active sessions logged out.' });
     }
     throw new Error('Unsupported user action');
   } catch (err) {
@@ -359,12 +414,10 @@ app.post('/api/admin/users/:id/toggle', requireAdmin, (req, res) => {
   }
 });
 
-app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
   try {
-    if (!licenseManager.deleteLicense(req.params.id)) {
-      return res.status(404).json({ success: false, error: 'License not found' });
-    }
-    res.json({ success: true });
+    await handlePermanentDeleteKeyOrUser(req.params.id);
+    res.json({ success: true, message: 'User permanently deleted and sessions terminated.' });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
   }
@@ -1830,6 +1883,8 @@ wss.on('connection', (ws) => {
         if (session) {
           ws.userId = session.userId;
           ws.username = session.username;
+          ws.key = session.key;
+          ws.token = parsed.token;
           // Send user-isolated initial data
           ws.send(JSON.stringify({
             type: 'init',
@@ -1846,6 +1901,15 @@ wss.on('connection', (ws) => {
               settings: database.getSettings()
             }
           }));
+        } else {
+          // Token is invalid or the license key was deleted
+          ws.send(JSON.stringify({
+            type: 'logout',
+            data: { reason: 'Your session has expired or license key was deleted. Please log in again.' }
+          }));
+          setTimeout(() => {
+            try { ws.close(4001, 'Invalid session'); } catch (_) {}
+          }, 300);
         }
       }
     } catch (e) {}

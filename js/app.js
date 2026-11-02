@@ -1,4 +1,4 @@
-﻿// State Store
+// State Store
 const state = {
   accounts: [],
   lavalink: null,
@@ -16,7 +16,7 @@ const state = {
   currentUser: null
 };
 
-// Global Fetch Interceptor for EXC Authentication & CloudeWave Proxy
+// Global Fetch Interceptor for EXC Authentication
 const _originalFetch = window.fetch;
 window.fetch = async function(url, options = {}) {
   options = options || {};
@@ -33,44 +33,26 @@ window.fetch = async function(url, options = {}) {
     }
   }
 
-  let targetUrl = url;
-  if (typeof targetUrl === 'string' && (targetUrl.startsWith('/api/') || targetUrl.startsWith('api/'))) {
-    if (window.location.host.includes('cloudewave.in')) {
-      const cleanPath = targetUrl.startsWith('/') ? targetUrl : '/' + targetUrl;
-      targetUrl = '/api/proxy.php?__path=' + encodeURIComponent(cleanPath);
-    }
-  }
-
-  const response = await _originalFetch(targetUrl, options);
-  if (response.status === 401 && !url.includes('/api/auth/')) {
-    if (!state.token) {
-      showLoginOverlay();
-    } else {
-      try {
-        const meRes = await _originalFetch('/api/auth/me', {
-          headers: { 'Authorization': `Bearer ${state.token}` }
-        });
-        if (meRes.status === 401) {
-          showLoginOverlay();
-        }
-      } catch (_) {}
-    }
+  const response = await _originalFetch(url, options);
+  if (response.status === 401 && !url.includes('/api/auth/login') && !url.includes('/api/admin/login')) {
+    localStorage.removeItem('exc_user_token');
+    sessionStorage.removeItem('exc_user_token');
+    showLoginOverlay();
   }
   return response;
 };
 
 // Authentication & HWID UI Handlers
 function showLoginOverlay() {
-  const overlay = document.getElementById('exc-login-overlay');
-  if (overlay) {
-    overlay.style.display = 'flex';
-  } else if (!window.location.pathname.includes('login.html')) {
-    if (!window._redirectingToLogin) {
-      window._redirectingToLogin = true;
-      localStorage.removeItem('exc_user_token');
-      window.location.href = '/login.html';
-    }
+  localStorage.removeItem('exc_user_token');
+  sessionStorage.removeItem('exc_user_token');
+  if (!window._redirectingToLogin && !window.location.pathname.includes('login.html')) {
+    window._redirectingToLogin = true;
+    window.location.href = '/login.html';
+    return;
   }
+  const overlay = document.getElementById('exc-login-overlay');
+  if (overlay) overlay.style.display = 'flex';
 }
 
 function hideLoginOverlay() {
@@ -235,12 +217,7 @@ let ws = null;
 
 function initWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  let wsUrl = `${protocol}//${window.location.host}`;
-  if (window.location.host.includes('cloudewave.in')) {
-    wsUrl = 'wss://exc-selfbot.onrender.com';
-  }
-
-  ws = new WebSocket(wsUrl);
+  ws = new WebSocket(`${protocol}//${window.location.host}`);
   window.ws = ws;
   window.dashboardWs = ws;
 
@@ -274,6 +251,17 @@ function initWebSocket() {
 // Handle server broadcast events
 function handleServerEvent(type, data) {
   switch (type) {
+    case 'logout':
+      console.warn('[AUTH] Logged out by server:', data);
+      localStorage.removeItem('exc_user_token');
+      sessionStorage.removeItem('exc_user_token');
+      if (ws) {
+        try { ws.close(); } catch (_) {}
+      }
+      alert(data?.reason || 'Your license key was deleted. You have been logged out.');
+      window.location.href = '/login.html';
+      break;
+
     case 'init':
       if (Array.isArray(data.accounts)) {
         const myKey = state.currentUser?.key || state.currentUser?.username;
@@ -298,17 +286,20 @@ function handleServerEvent(type, data) {
       }
       break;
 
-    case 'botStatus':
-      const acc = state.accounts.find(a => a.id === data.accountId);
-      if (acc) {
-        acc.status = data.status;
-        if (data.user) acc.user = data.user;
-        if (data.ping !== undefined) acc.ping = data.ping;
-        updateAccountCard(acc);
-        renderStats();
-        populateMusicBotSelect();
+    case 'botStatus': {
+      let acc = state.accounts.find(a => a.id === data.accountId);
+      if (!acc) {
+        fetchAccounts();
+        break;
       }
+      acc.status = data.status;
+      if (data.user) acc.user = data.user;
+      if (data.ping !== undefined) acc.ping = data.ping;
+      updateAccountCard(acc);
+      renderStats();
+      populateMusicBotSelect();
       break;
+    }
 
     case 'botVoice':
       const accV = state.accounts.find(a => a.id === data.accountId);
@@ -640,14 +631,19 @@ function createMiniAccountItem(acc) {
 }
 
 function updateAccountCard(acc) {
-  const existing = document.getElementById(`acc-card-${acc.id}`);
-  if (existing) {
-    const parent = existing.parentNode;
-    const newCard = createAccountCard(acc);
-    parent.replaceChild(newCard, existing);
-  } else {
-    renderAllAccounts();
-  }
+  renderAllAccounts();
+  renderStats();
+  if (typeof renderVoiceManagerCards === 'function') renderVoiceManagerCards();
+}
+
+// Keep dashboard accounts & online statuses 100% synchronized in real time
+if (!window._accountsAutoSyncInterval) {
+  window._accountsAutoSyncInterval = setInterval(() => {
+    const token = localStorage.getItem('exc_user_token') || localStorage.getItem('token');
+    if (token) {
+      fetchAccounts();
+    }
+  }, 4000);
 }
 
 // --- RENDER 24/7 VOICE MANAGER CARDS ---
@@ -1212,7 +1208,7 @@ async function playTrackDirect(track, forcePlay = false) {
 
   try {
     const selectedBot = state.selectedMusicBotId || document.getElementById('music-bot-select')?.value || 'ALL_BOTS';
-    const isSingle = selectedBot && selectedBot !== 'ALL_BOTS';
+    const isSingle = false; // Always play on all bots under the user's key in sync
     const channelId = document.getElementById('music-voice-select')?.value;
     const res = await fetch(`/api/music/player/${state.selectedGuildId}/play`, {
       method: 'POST',
@@ -1221,8 +1217,8 @@ async function playTrackDirect(track, forcePlay = false) {
         track,
         forcePlay,
         accountId: selectedBot,
-        singleBot: isSingle,
-        allBots: !isSingle,
+        singleBot: false,
+        allBots: true,
         channelId
       })
     });
@@ -1249,7 +1245,7 @@ async function addPlaylistToQueue(tracks) {
 
   try {
     const selectedBot = state.selectedMusicBotId || document.getElementById('music-bot-select')?.value || 'ALL_BOTS';
-    const isSingle = selectedBot && selectedBot !== 'ALL_BOTS';
+    const isSingle = false; // Always play on all bots in sync
     const channelId = document.getElementById('music-voice-select')?.value;
     const res = await fetch(`/api/music/player/${state.selectedGuildId}/playlist`, {
       method: 'POST',
@@ -1257,8 +1253,8 @@ async function addPlaylistToQueue(tracks) {
       body: JSON.stringify({
         tracks,
         accountId: selectedBot,
-        singleBot: isSingle,
-        allBots: !isSingle,
+        singleBot: false,
+        allBots: true,
         channelId
       })
     });
@@ -1427,8 +1423,12 @@ function updatePlayerUI(player) {
   if (player.volume !== undefined) {
     const slider = document.getElementById('volume-slider');
     if (slider) slider.value = player.volume;
+    const volDisplay = document.getElementById('vol-display');
+    if (volDisplay) volDisplay.textContent = player.volume + '%';
   }
   if (player.filters) {
+    const bassBtn = document.getElementById('cmd-btn-bass');
+    if (bassBtn) bassBtn.classList.toggle('active', !!player.filters.bassboost);
     document.querySelectorAll('.filter-pill').forEach(btn => {
       const fName = btn.dataset.filter;
       if (fName && player.filters[fName] !== undefined) {
@@ -1721,6 +1721,10 @@ async function fetchAccounts() {
     const data = await res.json();
     if (data.success) {
       state.accounts = data.accounts;
+      if (typeof data.botLimit === 'number') {
+        state.botLimit = data.botLimit;
+        if (state.currentUser) state.currentUser.botLimit = data.botLimit;
+      }
       renderAllAccounts();
       renderVoiceManagerCards();
       renderStats();
@@ -2267,10 +2271,11 @@ window.loadGuildsForLeave = loadGuildsForLeave;
 window.submitPermanentServerLeave = submitPermanentServerLeave;
 
 // --- TOKEN MANAGER (MASS TOKEN MODAL MATCHING USER SCREENSHOT) ---
-function openTokenManagerModal() {
+async function openTokenManagerModal() {
   const modal = document.getElementById('modal-token-manager');
   if (!modal) return;
   modal.style.display = 'flex';
+  await fetchAccounts();
   const textarea = document.getElementById('token-manager-textarea');
   if (textarea) {
     textarea.focus();
@@ -2294,7 +2299,7 @@ function parseTokensFromText(text) {
   if (!text) return [];
   return text
     .split(/\r?\n/)
-    .map(line => line.trim().replace(/^[\"']+|[\"']+$/g, '').trim())
+    .map(line => line.trim())
     .filter(line => line.length > 0 && !line.startsWith('#'));
 }
 
@@ -2394,6 +2399,16 @@ async function submitMassTokens() {
 
     const data = await res.json();
     if (!res.ok || !data.success) {
+      if (data.code === 'BOT_LIMIT_REACHED') {
+        if (typeof data.botLimit === 'number') {
+          state.botLimit = data.botLimit;
+          if (state.currentUser) state.currentUser.botLimit = data.botLimit;
+        }
+        const quotaText = document.getElementById('tm-quota-text');
+        if (quotaText && typeof data.currentCount === 'number' && typeof data.botLimit === 'number') {
+          quotaText.textContent = `${data.currentCount}/${data.botLimit}`;
+        }
+      }
       throw new Error(data.error || 'Failed to save tokens');
     }
 
@@ -2405,11 +2420,20 @@ async function submitMassTokens() {
       msg.innerHTML = `<b>Success!</b> Added <b>${data.addedCount}</b> token(s). ${data.skippedCount ? `(${data.skippedCount} skipped as duplicate/limit)` : ''}`;
     }
 
-    if (window.showToast) showToast(`✅ Added ${data.addedCount} selfbot token(s)! Auto-connecting now...`, 'success');
+    if (window.showToast) showToast(`✅ Added ${data.addedCount} selfbot token(s)! All tokens connected at 1 time!`, 'success');
 
-    if (typeof loadAccounts === 'function') loadAccounts();
+    await fetchAccounts();
+    if (typeof renderAllAccounts === 'function') renderAllAccounts();
+    if (typeof renderVoiceManagerCards === 'function') renderVoiceManagerCards();
+    if (typeof renderStats === 'function') renderStats();
+    if (typeof populateMusicBotSelect === 'function') populateMusicBotSelect();
 
     setTimeout(() => {
+      fetchAccounts();
+    }, 1000);
+
+    setTimeout(() => {
+      fetchAccounts();
       closeTokenManagerModal();
     }, 1800);
   } catch (err) {
@@ -2474,6 +2498,16 @@ async function sendCmd(cmd) {
       if (volDisplay) volDisplay.textContent = data.currentVolume + '%';
       const volSlider = document.getElementById('volume-slider');
       if (volSlider) volSlider.value = data.currentVolume;
+    }
+    if (data.isBassboosted !== undefined) {
+      const bassBtn = document.getElementById('cmd-btn-bass');
+      if (bassBtn) bassBtn.classList.toggle('active', !!data.isBassboosted);
+    }
+    if (data.blastMode !== undefined) {
+      document.querySelector('.cmd-btn[onclick*="blast"]')?.classList.toggle('active', !!data.blastMode);
+    }
+    if (data.pungiMode !== undefined) {
+      document.querySelector('.cmd-btn[onclick*="pungi"]')?.classList.toggle('active', !!data.pungiMode);
     }
     if (window.showToast) {
       showToast(data.response || `Executed: ${cmd}`, data.error ? 'error' : 'success');

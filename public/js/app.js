@@ -34,35 +34,25 @@ window.fetch = async function(url, options = {}) {
   }
 
   const response = await _originalFetch(url, options);
-  if (response.status === 401 && !url.includes('/api/auth/')) {
-    if (!state.token) {
-      showLoginOverlay();
-    } else {
-      try {
-        const meRes = await _originalFetch('/api/auth/me', {
-          headers: { 'Authorization': `Bearer ${state.token}` }
-        });
-        if (meRes.status === 401) {
-          showLoginOverlay();
-        }
-      } catch (_) {}
-    }
+  if (response.status === 401 && !url.includes('/api/auth/login') && !url.includes('/api/admin/login')) {
+    localStorage.removeItem('exc_user_token');
+    sessionStorage.removeItem('exc_user_token');
+    showLoginOverlay();
   }
   return response;
 };
 
 // Authentication & HWID UI Handlers
 function showLoginOverlay() {
-  const overlay = document.getElementById('exc-login-overlay');
-  if (overlay) {
-    overlay.style.display = 'flex';
-  } else if (!window.location.pathname.includes('login.html')) {
-    if (!window._redirectingToLogin) {
-      window._redirectingToLogin = true;
-      localStorage.removeItem('exc_user_token');
-      window.location.href = '/login.html';
-    }
+  localStorage.removeItem('exc_user_token');
+  sessionStorage.removeItem('exc_user_token');
+  if (!window._redirectingToLogin && !window.location.pathname.includes('login.html')) {
+    window._redirectingToLogin = true;
+    window.location.href = '/login.html';
+    return;
   }
+  const overlay = document.getElementById('exc-login-overlay');
+  if (overlay) overlay.style.display = 'flex';
 }
 
 function hideLoginOverlay() {
@@ -261,6 +251,17 @@ function initWebSocket() {
 // Handle server broadcast events
 function handleServerEvent(type, data) {
   switch (type) {
+    case 'logout':
+      console.warn('[AUTH] Logged out by server:', data);
+      localStorage.removeItem('exc_user_token');
+      sessionStorage.removeItem('exc_user_token');
+      if (ws) {
+        try { ws.close(); } catch (_) {}
+      }
+      alert(data?.reason || 'Your license key was deleted. You have been logged out.');
+      window.location.href = '/login.html';
+      break;
+
     case 'init':
       if (Array.isArray(data.accounts)) {
         const myKey = state.currentUser?.key || state.currentUser?.username;

@@ -152,6 +152,21 @@ class Database {
     return true;
   }
 
+  deleteAccountsByOwner(ownerId) {
+    if (!ownerId) return 0;
+    const initialCount = this.accounts.length;
+    this.accounts = this.accounts.filter(a => a.ownerId !== ownerId);
+    const removedCount = initialCount - this.accounts.length;
+    if (removedCount > 0) {
+      this.saveJSON(config.accountsFile, this.accounts);
+      if (sqliteStore && typeof sqliteStore.deleteAccountsByOwner === 'function') {
+        sqliteStore.deleteAccountsByOwner(ownerId);
+      }
+      logger.info('DB', `Removed ${removedCount} bot account(s) owned by deleted user ${ownerId}.`);
+    }
+    return removedCount;
+  }
+
   // --- Settings methods ---
   getSettings() {
     return this.settings;

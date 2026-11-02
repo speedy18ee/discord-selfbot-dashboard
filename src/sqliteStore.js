@@ -260,6 +260,19 @@ class SQLiteStore {
     }
   }
 
+  async deleteAccountsByOwner(ownerId) {
+    if (!this.mysqlPool || !ownerId) return;
+    const tag = this.dashboardId || 'default';
+    try {
+      await this.mysqlPool.query(
+        'DELETE FROM accounts WHERE `dashboard_id` = ? AND `owner_id` = ?',
+        [tag, ownerId]
+      );
+    } catch (err) {
+      logger.warn('DB', `Delete relational accounts for owner ${ownerId}: ${err.message}`);
+    }
+  }
+
   scheduleRetry() {
     if (this._retryTimer) return;
     this._retryTimer = setTimeout(() => {

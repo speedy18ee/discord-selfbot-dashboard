@@ -214,14 +214,26 @@ class LicenseManager {
   }
 
   /**
-   * Delete a license
+   * Check if a license key exists and is valid
+   */
+  hasKey(key) {
+    if (!key || typeof key !== 'string') return false;
+    const cleanKey = key.trim().toUpperCase();
+    return this.licenses.some(l => l.key.toUpperCase() === cleanKey);
+  }
+
+  /**
+   * Permanently delete a license
    */
   deleteLicense(keyOrId) {
-    const idx = this.licenses.findIndex(l => l.id === keyOrId || l.key.toUpperCase() === keyOrId.toUpperCase());
-    if (idx === -1) return false;
+    if (!keyOrId) return null;
+    const clean = String(keyOrId).trim().toUpperCase();
+    const idx = this.licenses.findIndex(l => l.id === keyOrId || l.key.toUpperCase() === clean);
+    if (idx === -1) return null;
     const removed = this.licenses.splice(idx, 1)[0];
-    this.saveLicenses();
-    return true;
+    this.saveLicenses(true);
+    logger.info('LICENSE', `Permanently deleted license key "${removed.key}" (ID: ${removed.id}).`);
+    return removed;
   }
 
   getAll() {
