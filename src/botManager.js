@@ -142,15 +142,20 @@ class BotManager extends EventEmitter {
             const isOnline = entry && (entry.status === "online" || entry.status === "connecting");
 
             if (!isOnline && (!entry || !entry.userStopped)) {
-              if (entry && entry.error && (entry.error.includes("TOKEN_INVALID") || entry.error.includes("invalid token") || entry.error.includes("4004"))) {
+              const errStr = (entry?.error || '').toLowerCase();
+              if (errStr.includes("token_invalid") || errStr.includes("invalid token") || errStr.includes("4004") || errStr.includes("an invalid token")) {
+                continue;
+              }
+              if ((entry?.failCount || 0) >= 3) {
                 continue;
               }
 
               const now = Date.now();
-              if (!acc._lastWatchdogStart || (now - acc._lastWatchdogStart) > 18000) {
+              if (!acc._lastWatchdogStart || (now - acc._lastWatchdogStart) > 60000) {
                 acc._lastWatchdogStart = now;
-                logger.info("WATCHDOG", `[24/7 Keep-Alive] Account ${acc.label} is offline. Auto-starting immediately...`);
+                logger.info("WATCHDOG", `[24/7 Keep-Alive] Account ${acc.label} is offline. Auto-starting...`);
                 this.startAccount(acc.id).catch(err => {
+                  if (entry) entry.failCount = (entry.failCount || 0) + 1;
                   logger.warn("WATCHDOG", `[24/7 Keep-Alive] Auto-start for ${acc.label}: ${err.message}`);
                 });
               }
@@ -304,6 +309,7 @@ class BotManager extends EventEmitter {
     client.on("ready", async () => {
       botEntry.status = "online";
       botEntry.error = null;
+      botEntry.failCount = 0;
       botEntry.ping = client.ws.ping;
       logger.success("BOT", `Account connected: ${client.user.tag} (ID: ${client.user.id}) [${proxy ? 'Proxy: ' + proxy.replace(/:[^:]*@/, ':****@') : 'Direct'}]`);
 
@@ -335,6 +341,8 @@ class BotManager extends EventEmitter {
             guildId: acc.voice247.guildId,
             selfMute: acc.voice247.selfMute,
             selfDeaf: acc.voice247.selfDeaf
+          }).catch(err => {
+            logger.warn("24/7", `Auto-rejoin error for ${acc.label}: ${err.message}`);
           });
         }, 2000);
       }
@@ -411,6 +419,8 @@ class BotManager extends EventEmitter {
                   guildId: currentAcc.voice247.guildId,
                   selfMute: currentAcc.voice247.selfMute,
                   selfDeaf: currentAcc.voice247.selfDeaf
+                }).catch(err => {
+                  logger.warn("24/7", `Voice reconnect error for ${currentAcc.label}: ${err.message}`);
                 });
               }, 5000);
             }
