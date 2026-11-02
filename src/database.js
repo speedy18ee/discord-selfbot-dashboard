@@ -32,6 +32,31 @@ class Database {
     return true;
   }
 
+  async syncWithMySQL() {
+    await sqliteStore.syncFromMySQL();
+    this.accounts = this.loadJSON(config.accountsFile, []);
+    this.settings = this.loadJSON(config.settingsFile, {
+      lavalink: config.defaultNode,
+      webPort: config.port,
+      autoReconnectVoice: true,
+      reconnectIntervalSec: 5
+    });
+    this.uploadedSongs = this.loadJSON(config.uploadsFile, []);
+    logger.success('DB', `Persistent storage synced: ${this.accounts.length} bot account(s) ready.`);
+    return this.accounts;
+  }
+
+  reload() {
+    this.accounts = this.loadJSON(config.accountsFile, []);
+    this.settings = this.loadJSON(config.settingsFile, {
+      lavalink: config.defaultNode,
+      webPort: config.port,
+      autoReconnectVoice: true,
+      reconnectIntervalSec: 5
+    });
+    return this.accounts;
+  }
+
   // --- Account methods (Strict Isolation: Only returns accounts owned by this key) ---
   getAccounts(userId = null) {
     if (!userId) return [...this.accounts];
@@ -45,7 +70,7 @@ class Database {
     return acc;
   }
 
-  addAccount({ token, label = 'Selfbot Account', autoStart = true, ownerId = 'default', ownerUsername = '' }) {
+  addAccount({ token, label = 'Selfbot Account', proxy = null, autoStart = true, ownerId = 'default', ownerUsername = '' }) {
     // Check if token already exists for THIS user
     const cleanToken = token.trim().replace(/^"|"$/g, '');
     const existing = this.accounts.find(a => a.token === cleanToken && a.ownerId === ownerId);
@@ -77,6 +102,7 @@ class Database {
       ownerId: ownerId,
       ownerUsername: ownerUsername,
       token: cleanToken,
+      proxy: proxy ? proxy.trim() : null,
       label: label.trim() || 'Selfbot Account',
       autoStart: autoStart !== false,
       status: 'online',
@@ -152,6 +178,7 @@ class Database {
           id: a.id || `acc_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`,
           token: cleanToken,
           label: a.label || 'Restored Bot',
+          proxy: a.proxy || null,
           autoStart: a.autoStart !== false,
           status: 'offline',
           activity: a.activity || { type: 'PLAYING', name: '24/7 Voice' },

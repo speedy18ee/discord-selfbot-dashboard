@@ -34,6 +34,18 @@ class LicenseManager {
     }
   }
 
+  async syncWithMySQL() {
+    await sqliteStore.syncFromMySQL();
+    this.licenses = sqliteStore.getJSON('licenses', [], this.licensesFile);
+    logger.success('LICENSE', `Loaded ${this.licenses.length} license(s) from persistent storage.`);
+    return this.licenses;
+  }
+
+  reload() {
+    this.licenses = sqliteStore.getJSON('licenses', [], this.licensesFile);
+    return this.licenses;
+  }
+
   loadJSON(file, fallback) {
     try {
       if (fs.existsSync(file)) {

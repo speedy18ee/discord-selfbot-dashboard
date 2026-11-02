@@ -39,6 +39,27 @@ class AuthManager {
     });
   }
 
+  async syncWithMySQL() {
+    await sqliteStore.syncFromMySQL();
+    this.users = sqliteStore.getJSON('users', [], this.usersFile).map(u => ({
+      ...u,
+      botLimit: typeof u.botLimit === 'number' ? u.botLimit : 10
+    }));
+    this.sessions = new Map(Object.entries(sqliteStore.getJSON('auth_sessions', {})));
+    this.adminSessions = new Set(sqliteStore.getJSON('admin_sessions', []));
+    logger.success('AUTH', `Loaded ${this.users.length} registered user(s) from persistent storage.`);
+  }
+
+  reload() {
+    this.users = sqliteStore.getJSON('users', [], this.usersFile).map(u => ({
+      ...u,
+      botLimit: typeof u.botLimit === 'number' ? u.botLimit : 10
+    }));
+    this.sessions = new Map(Object.entries(sqliteStore.getJSON('auth_sessions', {})));
+    this.adminSessions = new Set(sqliteStore.getJSON('admin_sessions', []));
+    return this.users;
+  }
+
   loadJSON(filePath, fallback) {
     try {
       if (fs.existsSync(filePath)) {

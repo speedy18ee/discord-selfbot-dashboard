@@ -8,12 +8,14 @@ services:
     environment:
       - PORT=24681
       - NODE_ENV=production
-      - ADMIN_PASSWORD=speedy18ee
-      - MYSQL_HOST=91.99.159.222
-      - MYSQL_PORT=3306
-      - MYSQL_USER=u53933_TwKFrKq63U
-      - MYSQL_PASSWORD=r4n+QN4Oye+74YBEG7FUUai6
-      - MYSQL_DATABASE=s53933_speedy
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-speedy18ee}
+      - MYSQL_HOST=${MYSQL_HOST:-mysql-12c6eeb0-dhanushdhnu390-0563.d.aivencloud.com}
+      - MYSQL_PORT=${MYSQL_PORT:-21349}
+      - MYSQL_USER=${MYSQL_USER:-avnadmin}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-defaultdb}
+      - MYSQL_SSL=${MYSQL_SSL:-REQUIRED}
+      - MYSQL_URI=${MYSQL_URI}
     volumes:
       - app_data:/app/data
     restart: unless-stopped
