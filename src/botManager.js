@@ -422,7 +422,7 @@ class BotManager extends EventEmitter {
     });
 
     client.on("debug", (info) => {
-      if (typeof info === 'string') {
+      if (process.env.DEBUG_DISCORD === 'true' && typeof info === 'string') {
         if (info.includes("Heartbeat") || info.includes("heartbeat")) return;
         if (info.includes("WS") || info.includes("Gateway") || info.includes("Session") || info.includes("Connecting") || info.includes("Handshake") || info.includes("4004") || info.includes("4000")) {
           logger.info("BOT_DEBUG", `[${acc.label}] ${info}`);

@@ -32,5 +32,5 @@ RUN mkdir -p /app/data
 # Expose web server port
 EXPOSE 24681
 
-# Start server
-CMD ["node", "server.js"]
+# Start server with expanded heap to support multiple bots without OOM
+CMD ["node", "--max-old-space-size=450", "server.js"]
