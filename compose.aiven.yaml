@@ -9,7 +9,7 @@ services:
       - PORT=24681
       - NODE_ENV=production
       - DASHBOARD_ID=${DASHBOARD_ID:-}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-speedy18ee}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-lahari18ee}
       - MYSQL_HOST=${MYSQL_HOST:-mysql-12c6eeb0-dhanushdhnu390-0563.d.aivencloud.com}
       - MYSQL_PORT=${MYSQL_PORT:-21349}
       - MYSQL_USER=${MYSQL_USER:-avnadmin}
