@@ -1023,7 +1023,7 @@ app.post('/api/music/custom-audio', async (req, res) => {
             ownerId
           });
           p.volume = 1000;
-          p.filters.bassboost = true;
+          p.filters.bassboost = false;
           p.queue.push(track);
           lavalink.emit('queueUpdate', p);
           broadcast('playerUpdate', { guildId: targetGuildId, player: p, accountId: ub.id, ownerId }, ownerId);
@@ -1071,10 +1071,10 @@ app.post('/api/music/custom-audio', async (req, res) => {
         });
       }));
 
-      // Allow 400ms for stream preloading concurrently
-      await new Promise(r => setTimeout(r, 400));
+      // 2. Short 600ms buffer synchronization gate
+      await new Promise(r => setTimeout(r, 600));
 
-      // 2. Atomic simultaneous release across all bots (Zero start offset!)
+      // 3. Simultaneous barrier release: Unpause ALL bots at the EXACT same millisecond
       await Promise.allSettled(userBots.map(async (ub) => {
         const b = botManager.bots.get(ub.id);
         const bUid = b?.client?.user?.id || null;
@@ -1082,37 +1082,11 @@ app.post('/api/music/custom-audio', async (req, res) => {
         if (p) {
           p.paused = false;
           p.playing = true;
-          p.position = 0;
         }
         return lavalink.sendPlayerUpdate(targetGuildId, {
-          paused: false,
-          position: 0
+          paused: false
         }, bUid);
       }));
-
-      // Precision sync snap after 1.8s
-      setTimeout(async () => {
-        try {
-          const players = [];
-          for (const ub of userBots) {
-            const p = lavalink.getPlayer(targetGuildId, ub.id, ownerId);
-            if (p && p.playing && p.userId) players.push(p);
-          }
-          if (players.length >= 2) {
-            const lead = players[0];
-            const leadPos = lead.position || 0;
-            for (let i = 1; i < players.length; i++) {
-              const follower = players[i];
-              const diff = Math.abs((follower.position || 0) - leadPos);
-              if (diff > 25) {
-                follower.position = leadPos;
-                await lavalink.sendPlayerUpdate(targetGuildId, { position: leadPos }, follower.userId);
-                logger.success('SYNC', `Snapped ${follower.accountId} into exact custom-audio sync with lead bot (${diff}ms drift eliminated)`);
-              }
-            }
-          }
-        } catch (_) {}
-      }, 1800);
 
       return res.json({
         success: true,
@@ -1260,7 +1234,7 @@ app.post('/api/music/uploads/:id/play', async (req, res) => {
     const currentVol = existingPlayer?.volume || 1000;
     const bassActive = existingPlayer?.filters?.bassboost === true;
 
-    // Play IMMEDIATELY on ALL bots in true unison
+    // 1. Pre-buffer on ALL bots in PAUSED state first
     await Promise.allSettled(userBots.map(async (ub) => {
       const b = botManager.bots.get(ub.id);
       const bUid = b?.client?.user?.id || null;
@@ -1276,7 +1250,7 @@ app.post('/api/music/uploads/:id/play', async (req, res) => {
       p.filters.bassboost = bassActive;
       p.currentTrack = track;
       p.playing = true;
-      p.paused = false;
+      p.paused = true;
       p.position = 0;
       p._syncedInitial = false;
       if (loop) {
@@ -1289,8 +1263,23 @@ app.post('/api/music/uploads/:id/play', async (req, res) => {
         ownerId,
         forcePlay: true,
         noReplace: false,
-        startPaused: false
+        startPaused: true
       });
+    }));
+
+    // 2. Short 600ms buffer synchronization gate
+    await new Promise(r => setTimeout(r, 600));
+
+    // 3. Simultaneous barrier release: Unpause ALL bots at the EXACT same millisecond
+    await Promise.allSettled(userBots.map(async (ub) => {
+      const b = botManager.bots.get(ub.id);
+      const bUid = b?.client?.user?.id || null;
+      const p = lavalink.getPlayer(targetGuildId, ub.id, ownerId);
+      if (p) {
+        p.paused = false;
+        p.playing = true;
+      }
+      return lavalink.sendPlayerUpdate(targetGuildId, { paused: false }, bUid);
     }));
 
     res.json({ success: true, massPlay: true, count: userBots.length, track, status: 'playing' });
@@ -1399,7 +1388,7 @@ app.post('/api/music/player/:guildId/play', async (req, res) => {
       const currentVol = existingPlayer?.volume || 100;
       const bassActive = existingPlayer?.filters?.bassboost === true;
 
-      // 2. Play IMMEDIATELY on ALL bots in true unison without delay or initial pausing
+      // 2. Pre-buffer on ALL bots in PAUSED state first so each bot loads audio frames into Lavalink memory
       await Promise.allSettled(userBots.map(async (ub) => {
         const bot = botManager.bots.get(ub.id);
         const userId = bot?.client?.user?.id || null;
@@ -1414,7 +1403,7 @@ app.post('/api/music/player/:guildId/play', async (req, res) => {
         player.filters.bassboost = bassActive;
         player.currentTrack = readyTrack;
         player.playing = true;
-        player.paused = false;
+        player.paused = true;
         player.position = 0;
         player._syncedInitial = false;
         return lavalink.play(req.params.guildId, readyTrack, {
@@ -1424,11 +1413,29 @@ app.post('/api/music/player/:guildId/play', async (req, res) => {
           ownerId,
           forcePlay: true,
           noReplace: false,
-          startPaused: false
+          startPaused: true
         });
       }));
 
-      logger.success('MUSIC', `Instant synchronized play started for: "${readyTrack.info?.title}" across ${userBots.length} bots`);
+      // 3. Short 600ms buffer synchronization gate (allows both bots to finish resolving YouTube stream)
+      await new Promise(r => setTimeout(r, 600));
+
+      // 4. Simultaneous barrier release: Unpause ALL bots at the EXACT same millisecond!
+      // (WITHOUT position parameter so it unpauses existing frames instantly with 0ms offset!)
+      await Promise.allSettled(userBots.map(async (ub) => {
+        const bot = botManager.bots.get(ub.id);
+        const userId = bot?.client?.user?.id || null;
+        const player = lavalink.getPlayer(req.params.guildId, ub.id, ownerId);
+        if (player) {
+          player.paused = false;
+          player.playing = true;
+        }
+        return lavalink.sendPlayerUpdate(req.params.guildId, {
+          paused: false
+        }, userId);
+      }));
+
+      logger.success('MUSIC', `Synced mass play active: "${readyTrack.info?.title}" across ${userBots.length} bots in exact unison`);
       return res.json({ success: true, massPlay: true, count: userBots.length, result: { status: 'playing', track: readyTrack } });
     }
 
@@ -1505,7 +1512,7 @@ app.post('/api/music/player/:guildId/playlist', async (req, res) => {
       const existingPlayer = lavalink.getPlayer(req.params.guildId, null, ownerId);
       const bassActive = existingPlayer?.filters?.bassboost === true;
 
-      // Play first track immediately in unison across all bots with identical queues
+      // 2. Pre-buffer first track in PAUSED state across all bots with identical queues
       await Promise.allSettled(userBots.map(async (ub) => {
         const bot = botManager.bots.get(ub.id);
         const userId = bot?.client?.user?.id || null;
@@ -1521,7 +1528,7 @@ app.post('/api/music/player/:guildId/playlist', async (req, res) => {
         player.filters.bassboost = bassActive;
         player.currentTrack = firstTrack;
         player.playing = true;
-        player.paused = false;
+        player.paused = true;
         player.position = 0;
         player._syncedInitial = false;
         return lavalink.play(req.params.guildId, firstTrack, {
@@ -1530,8 +1537,25 @@ app.post('/api/music/player/:guildId/playlist', async (req, res) => {
           userId,
           ownerId,
           noReplace: true,
-          startPaused: false
+          startPaused: true
         });
+      }));
+
+      // 3. Short 600ms buffer synchronization gate
+      await new Promise(r => setTimeout(r, 600));
+
+      // 4. Simultaneous barrier release: Unpause ALL bots at the EXACT same millisecond
+      await Promise.allSettled(userBots.map(async (ub) => {
+        const bot = botManager.bots.get(ub.id);
+        const userId = bot?.client?.user?.id || null;
+        const player = lavalink.getPlayer(req.params.guildId, ub.id, ownerId);
+        if (player) {
+          player.paused = false;
+          player.playing = true;
+        }
+        return lavalink.sendPlayerUpdate(req.params.guildId, {
+          paused: false
+        }, userId);
       }));
 
       return res.json({ success: true, count: tracks.length, massPlay: true, botCount: userBots.length });

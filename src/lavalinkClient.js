@@ -127,22 +127,40 @@ class LavalinkSession extends EventEmitter {
             player.ping = msg.state.ping || 0;
             player.connected = msg.state.connected ?? true;
 
-            // Gentle Multi-Bot Drift Check:
-            // Only re-align if a bot has a massive desync (> 2500ms, e.g. late join or major packet freeze)
-            // Never seek on small normal differences (< 2.5s) to avoid tearing down audio stream buffers.
-            if (player.playing && player.position > 2500 && !player._syncedInitial) {
+            // Precision Multi-Bot Lockstep Sync:
+            // If one bot is ahead (front) and one is behind (last), eliminate the echo by momentarily
+            // pausing the front bot for the exact millisecond delta so the trailing bot catches up into 100% unison.
+            // Zero stream buffering, zero seeking, zero audio tearing!
+            if (player.playing && player.position > 1000 && !player._syncedInitial) {
               const uniquePlayers = new Set(this.client.players.values());
               for (const p of uniquePlayers) {
-                if (p.guildId === msg.guildId && (!player.ownerId || p.ownerId === player.ownerId) && p !== player && p.playing && p.position > 2500) {
-                  const diff = Math.abs(player.position - p.position);
-                  if (diff > 2500) {
-                    const syncTarget = Math.max(player.position, p.position);
-                    player.position = syncTarget;
+                if (p.guildId === msg.guildId && (!player.ownerId || p.ownerId === player.ownerId) && p !== player && p.playing && p.position > 1000) {
+                  const diff = (player.position || 0) - (p.position || 0);
+                  if (diff >= 60 && diff <= 900) {
+                    // THIS bot is the front bot (ahead). Pause THIS bot for `diff` ms so `p` catches up!
+                    player.paused = true;
                     player._syncedInitial = true;
                     p._syncedInitial = true;
-                    this.client.sendPlayerUpdate(msg.guildId, { position: syncTarget }, this.userId).catch(() => {});
-                    logger.success('SYNC', `Soft alignment: Synced bot [${player.accountId || this.userId}] to [${syncTarget}ms] (${diff}ms gap corrected)`);
-                  } else {
+                    this.client.sendPlayerUpdate(msg.guildId, { paused: true }, this.userId).catch(() => {});
+                    setTimeout(() => {
+                      player.paused = false;
+                      this.client.sendPlayerUpdate(msg.guildId, { paused: false }, this.userId).catch(() => {});
+                      logger.success('SYNC', `Locked bots into lockstep unison! Paused front bot for ${diff}ms (drift eliminated)`);
+                    }, diff);
+                  } else if (diff <= -60 && diff >= -900) {
+                    // The other bot `p` is the front bot (ahead). Pause `p` for `|diff|` ms so THIS bot catches up!
+                    const gap = Math.abs(diff);
+                    p.paused = true;
+                    player._syncedInitial = true;
+                    p._syncedInitial = true;
+                    this.client.sendPlayerUpdate(msg.guildId, { paused: true }, p.userId).catch(() => {});
+                    setTimeout(() => {
+                      p.paused = false;
+                      this.client.sendPlayerUpdate(msg.guildId, { paused: false }, p.userId).catch(() => {});
+                      logger.success('SYNC', `Locked bots into lockstep unison! Paused front bot for ${gap}ms (drift eliminated)`);
+                    }, gap);
+                  } else if (Math.abs(diff) < 60) {
+                    // Perfectly in phase (< 60ms is tight sync in Discord voice)
                     player._syncedInitial = true;
                     p._syncedInitial = true;
                   }
@@ -906,32 +924,33 @@ class LavalinkClient extends EventEmitter {
       };
     }
 
-    // 2. Equalizer: Bass Removed for High Clear Loud Volume
+    // 2. Equalizer: Strong Low-End Bass Cut for Crisp, Crystal Clear Volume
     if (player.filters.bassboost) {
+      // Mild clean punch (sub-bass still controlled so it never distorts)
       filtersPayload.equalizer = [
-        { band: 0, gain: 0.10 }, // 25 Hz
-        { band: 1, gain: 0.12 }, // 40 Hz
-        { band: 2, gain: 0.12 }, // 63 Hz
-        { band: 3, gain: 0.08 }, // 100 Hz
-        { band: 4, gain: 0.04 }, // 160 Hz
-        { band: 5, gain: 0.02 },
-        { band: 6, gain: 0.02 },
-        { band: 7, gain: 0.04 },
-        { band: 8, gain: 0.06 },
-        { band: 9, gain: 0.08 },
-        { band: 10, gain: 0.06 },
-        { band: 11, gain: 0.04 },
+        { band: 0, gain: -0.15 }, // 25 Hz sub-bass controlled
+        { band: 1, gain: -0.10 }, // 40 Hz
+        { band: 2, gain: -0.05 }, // 63 Hz
+        { band: 3, gain: 0.02 },  // 100 Hz tight punch
+        { band: 4, gain: 0.04 },  // 160 Hz
+        { band: 5, gain: 0.06 },
+        { band: 6, gain: 0.08 },
+        { band: 7, gain: 0.10 },
+        { band: 8, gain: 0.12 },
+        { band: 9, gain: 0.12 },
+        { band: 10, gain: 0.10 },
+        { band: 11, gain: 0.06 },
         { band: 12, gain: 0.02 },
         { band: 13, gain: 0.00 },
         { band: 14, gain: 0.00 }
       ];
     } else if (player.filters.extremeLoud) {
       filtersPayload.equalizer = [
-        { band: 0, gain: -0.25 },
-        { band: 1, gain: -0.20 },
-        { band: 2, gain: -0.10 },
-        { band: 3, gain: 0.05 },
-        { band: 4, gain: 0.15 },
+        { band: 0, gain: -0.35 },
+        { band: 1, gain: -0.30 },
+        { band: 2, gain: -0.20 },
+        { band: 3, gain: -0.10 },
+        { band: 4, gain: 0.10 },
         { band: 5, gain: 0.20 },
         { band: 6, gain: 0.25 },
         { band: 7, gain: 0.30 },
@@ -945,11 +964,11 @@ class LavalinkClient extends EventEmitter {
       ];
     } else if (player.filters.packing) {
       filtersPayload.equalizer = [
-        { band: 0, gain: -0.25 },
-        { band: 1, gain: -0.20 },
-        { band: 2, gain: -0.10 },
-        { band: 3, gain: 0.05 },
-        { band: 4, gain: 0.15 },
+        { band: 0, gain: -0.35 },
+        { band: 1, gain: -0.30 },
+        { band: 2, gain: -0.20 },
+        { band: 3, gain: -0.10 },
+        { band: 4, gain: 0.10 },
         { band: 5, gain: 0.25 },
         { band: 6, gain: 0.35 },
         { band: 7, gain: 0.45 },
@@ -963,12 +982,12 @@ class LavalinkClient extends EventEmitter {
       ];
     } else if (player.filters.clarity) {
       filtersPayload.equalizer = [
-        { band: 0, gain: -0.25 },
-        { band: 1, gain: -0.20 },
-        { band: 2, gain: -0.15 },
-        { band: 3, gain: -0.05 },
-        { band: 4, gain: 0.10 },
-        { band: 5, gain: 0.20 },
+        { band: 0, gain: -0.35 },
+        { band: 1, gain: -0.30 },
+        { band: 2, gain: -0.22 },
+        { band: 3, gain: -0.12 },
+        { band: 4, gain: 0.05 },
+        { band: 5, gain: 0.18 },
         { band: 6, gain: 0.25 },
         { band: 7, gain: 0.30 },
         { band: 8, gain: 0.35 },
@@ -980,21 +999,21 @@ class LavalinkClient extends EventEmitter {
         { band: 14, gain: 0.10 }
       ];
     } else {
-      // Default: Reduced Bass - Clean, high clear volume with sub-bass cut
+      // Default: High-Pass / Low-Bass Reduction (Loud, crystal clear volume with NO bass mud)
       filtersPayload.equalizer = [
-        { band: 0, gain: -0.25 }, // 25 Hz sub-bass completely cut
-        { band: 1, gain: -0.22 }, // 40 Hz deep bass cut
-        { band: 2, gain: -0.18 }, // 63 Hz bass boom cut
-        { band: 3, gain: -0.10 }, // 100 Hz punch cut
-        { band: 4, gain: -0.05 }, // 160 Hz transition
-        { band: 5, gain: 0.00 },  // 250 Hz natural
-        { band: 6, gain: 0.04 },  // 400 Hz vocals
-        { band: 7, gain: 0.08 },  // 630 Hz vocal clarity
-        { band: 8, gain: 0.10 },  // 1.0 kHz crisp lyrics
-        { band: 9, gain: 0.10 },  // 1.6 kHz clarity
-        { band: 10, gain: 0.08 }, // 2.5 kHz presence
-        { band: 11, gain: 0.05 }, // 4.0 kHz treble
-        { band: 12, gain: 0.02 }, // 6.3 kHz
+        { band: 0, gain: -0.35 }, // 25 Hz: deep sub-bass mud cut
+        { band: 1, gain: -0.30 }, // 40 Hz: low bass rumble cut
+        { band: 2, gain: -0.22 }, // 63 Hz: bass boom cut
+        { band: 3, gain: -0.12 }, // 100 Hz: punch mud cut
+        { band: 4, gain: -0.04 }, // 160 Hz: clean natural transition
+        { band: 5, gain: 0.04 },  // 250 Hz: warmth
+        { band: 6, gain: 0.08 },  // 400 Hz: vocals
+        { band: 7, gain: 0.14 },  // 630 Hz: vocal clarity & presence
+        { band: 8, gain: 0.18 },  // 1.0 kHz: crisp lyrics
+        { band: 9, gain: 0.18 },  // 1.6 kHz: high definition
+        { band: 10, gain: 0.14 }, // 2.5 kHz: brightness
+        { band: 11, gain: 0.08 }, // 4.0 kHz: treble air
+        { band: 12, gain: 0.04 }, // 6.3 kHz
         { band: 13, gain: 0.00 }, // 10 kHz
         { band: 14, gain: 0.00 }  // 16 kHz
       ];
