@@ -18,26 +18,35 @@ let proxyRotationIndex = 0;
 
 function loadFreeProxies() {
   try {
-    const pPath = path.join(__dirname, "..", "data", "free_proxies.txt");
-    if (fs.existsSync(pPath)) {
-      const raw = fs.readFileSync(pPath, "utf8")
-        .split(/\r?\n/)
-        .map(s => s.trim())
-        .filter(s => s && s.includes(":"));
-      if (raw.length > 0) {
-        freeProxiesList = Array.from(new Set(raw));
-        logger.info("PROXY", `🛡️ Loaded ${freeProxiesList.length} proxies from free_proxies.txt for token safety & 24/7 uptime`);
-        return;
+    const candidatePaths = [
+      path.join(__dirname, "..", "free_proxies.txt"),
+      path.join(__dirname, "..", "data", "free_proxies.txt"),
+      path.join(__dirname, "free_proxies.txt"),
+      path.join(__dirname, "..", "free-proxy-list (8).txt"),
+      path.join(__dirname, "..", "working_ws_proxies.json")
+    ];
+    let loaded = [];
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        if (p.endsWith('.json')) {
+          try {
+            const data = JSON.parse(fs.readFileSync(p, "utf8"));
+            if (Array.isArray(data)) loaded.push(...data);
+          } catch (_) {}
+        } else {
+          try {
+            const raw = fs.readFileSync(p, "utf8")
+              .split(/\r?\n/)
+              .map(s => s.trim())
+              .filter(s => s && s.includes(":"));
+            loaded.push(...raw);
+          } catch (_) {}
+        }
       }
     }
-    const wsProxiesPath = path.join(__dirname, "..", "working_ws_proxies.json");
-    if (fs.existsSync(wsProxiesPath)) {
-      const data = JSON.parse(fs.readFileSync(wsProxiesPath, "utf8"));
-      if (Array.isArray(data) && data.length > 0) {
-        freeProxiesList = data;
-        logger.info("PROXY", `Loaded ${freeProxiesList.length} proxies from working_ws_proxies.json for rate-limit & token protection`);
-        return;
-      }
+    if (loaded.length > 0) {
+      freeProxiesList = Array.from(new Set(loaded));
+      logger.info("PROXY", `🛡️ Loaded ${freeProxiesList.length} proxies from pool for token safety & 24/7 uptime`);
     }
   } catch (e) {
     logger.warn("PROXY", `Could not load proxies: ${e.message}`);
@@ -207,6 +216,14 @@ class BotManager extends EventEmitter {
     // If account has an explicit dedicated proxy configured, allow it as backup
     if (acc.proxy && acc.proxy.trim() && !isOldDeadProxy(acc.proxy)) {
       candidateProxies.push(acc.proxy.trim());
+    }
+
+    // Add rotating proxies from user-provided pool as failover when Direct gets rate-limited!
+    for (let r = 0; r < 4; r++) {
+      const rot = getNextRotatingProxy();
+      if (rot && !candidateProxies.includes(rot)) {
+        candidateProxies.push(rot);
+      }
     }
 
     let lastError = null;
