@@ -32,9 +32,5 @@ RUN mkdir -p /app/data
 # Expose web server port
 EXPOSE 24681
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD curl -f http://localhost:24681/api/status || exit 1
-
 # Start server
 CMD ["node", "server.js"]
