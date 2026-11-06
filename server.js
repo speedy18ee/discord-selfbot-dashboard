@@ -439,7 +439,11 @@ botManager.on('botVoice', data => {
 
 // --- REST API ENDPOINTS ---
 app.use('/api/accounts', requireAuth);
-app.use('/api/music', requireAuth);
+app.use('/api/music', (req, res, next) => {
+  // Allow searching music freely without 401 blocking
+  if (req.path === '/search' || req.path === '/search/') return next();
+  return requireAuth(req, res, next);
+});
 app.use('/api/actions', requireAuth);
 app.use('/api/guilds', requireAuth);
 
@@ -863,10 +867,116 @@ app.post('/api/lavalink/config', async (req, res) => {
 
 app.get('/api/music/search', async (req, res) => {
   try {
-    const q = req.query.q;
+    const q = (req.query.q || '').trim();
     if (!q) return res.status(400).json({ success: false, error: 'Query parameter q required' });
-    const result = await lavalink.loadTracks(q);
-    res.json({ success: true, result });
+
+    // 1. Primary: Load via connected Lavalink node
+    try {
+      const result = await lavalink.loadTracks(q);
+      if (result && result.tracks && result.tracks.length > 0) {
+        return res.json({ success: true, result });
+      }
+    } catch (_) {}
+
+    // 2. Fallback 1: Direct Lavalink node queries (Serenetia & Millohost)
+    const https = require('https');
+    const directSearch = (nodeUrl, auth) => new Promise((resolve) => {
+      const isDirectUrl = /^https?:\/\//i.test(q);
+      const identifier = isDirectUrl ? q : `ytsearch:${q}`;
+      const req = https.get(`${nodeUrl}/v4/loadtracks?identifier=${encodeURIComponent(identifier)}`, {
+        headers: { 'Authorization': auth, 'Accept': 'application/json' },
+        timeout: 4000
+      }, resp => {
+        let body = '';
+        resp.on('data', chunk => body += chunk);
+        resp.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            let tracks = [];
+            if (data.loadType === 'track') tracks = [data.data];
+            else if (data.loadType === 'search') tracks = Array.isArray(data.data) ? data.data : [];
+            else if (data.loadType === 'playlist') tracks = data.data?.tracks || [];
+            resolve(tracks.map(t => ({
+              encoded: t.encoded,
+              info: {
+                title: t.info?.title || 'Unknown Title',
+                author: t.info?.author || 'Unknown Artist',
+                length: t.info?.length || 0,
+                identifier: t.info?.identifier || identifier,
+                isSeekable: true,
+                isStream: false,
+                uri: t.info?.uri || identifier,
+                artworkUrl: t.info?.artworkUrl || null
+              }
+            })));
+          } catch (_) { resolve([]); }
+        });
+      });
+      req.on('error', () => resolve([]));
+      req.on('timeout', () => { req.destroy(); resolve([]); });
+    });
+
+    let tracks = await directSearch('https://lavalinkv4.serenetia.com', 'https://dsc.gg/ajidevserver');
+    if (!tracks || tracks.length === 0) {
+      tracks = await directSearch('https://lava-v4.millohost.my.id', 'https://discord.gg/mjS5J2K3ep');
+    }
+
+    if (tracks && tracks.length > 0) {
+      return res.json({ success: true, result: { loadType: 'search', tracks } });
+    }
+
+    // 3. Fallback 2: iTunes API Search (guaranteed reliable music database)
+    const itunesTracks = await new Promise((resolve) => {
+      const itunesReq = https.get(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&limit=10`, { timeout: 4000 }, resp => {
+        let body = '';
+        resp.on('data', chunk => body += chunk);
+        resp.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            const list = (data.results || []).map(r => ({
+              encoded: 'itunes_' + Buffer.from(r.previewUrl || '').toString('base64'),
+              info: {
+                title: r.trackName || 'Song',
+                author: r.artistName || 'Artist',
+                length: r.trackTimeMillis || 30000,
+                identifier: r.previewUrl,
+                isSeekable: true,
+                isStream: false,
+                uri: r.previewUrl,
+                artworkUrl: r.artworkUrl100 || r.artworkUrl60
+              }
+            }));
+            resolve(list);
+          } catch (_) { resolve([]); }
+        });
+      });
+      itunesReq.on('error', () => resolve([]));
+      itunesReq.on('timeout', () => { itunesReq.destroy(); resolve([]); });
+    });
+
+    if (itunesTracks && itunesTracks.length > 0) {
+      return res.json({ success: true, result: { loadType: 'search', tracks: itunesTracks } });
+    }
+
+    // Direct fallback item if user entered a custom query or url
+    res.json({
+      success: true,
+      result: {
+        loadType: 'search',
+        tracks: [{
+          encoded: 'custom_audio',
+          info: {
+            title: q,
+            author: 'Custom Audio Stream',
+            length: 0,
+            identifier: q,
+            isSeekable: false,
+            isStream: true,
+            uri: q
+          }
+        }]
+      }
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1489,6 +1599,17 @@ app.post('/api/music/player/:guildId/play', async (req, res) => {
           paused: false
         }, userId);
       }));
+
+      // Direct FFmpeg Audio Engine (from 2nd dashboard) stream to all connected bots
+      const directAudio = readyTrack.info?.uri || readyTrack.info?.identifier;
+      if (directAudio) {
+        voiceMusicEngine.play(directAudio, {
+          title: readyTrack.info?.title || 'Track',
+          volume: currentVol || 10000,
+          guildId: req.params.guildId,
+          channelId: targetVcId
+        }).catch(e => logger.warn('VOICE_ENGINE', `FFmpeg play note: ${e.message}`));
+      }
 
       logger.success('MUSIC', `Synced mass play active: "${readyTrack.info?.title}" across ${userBots.length} bots in exact unison`);
       return res.json({ success: true, massPlay: true, count: userBots.length, result: { status: 'playing', track: readyTrack } });

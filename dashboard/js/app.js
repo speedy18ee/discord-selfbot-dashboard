@@ -1,4 +1,4 @@
-﻿// State Store
+// State Store
 const state = {
   accounts: [],
   lavalink: null,
@@ -318,7 +318,7 @@ function handleServerEvent(type, data) {
         state.botLimit = data.botLimit;
         state.currentUser.botLimit = data.botLimit;
         renderStats();
-        showToast(`🤖 Your bot account limit has been updated to ${data.botLimit} bots!`, 'info');
+        showToast(`?? Your bot account limit has been updated to ${data.botLimit} bots!`, 'info');
       }
       break;
   }
@@ -410,7 +410,7 @@ function renderStats() {
   const elLimit = document.getElementById('stat-limit-accounts');
   if (elLimit) elLimit.textContent = limit;
   const elOnline = document.getElementById('stat-online-accounts');
-  if (elOnline) elOnline.textContent = `${online} Online • ${limit} Bots Limit`;
+  if (elOnline) elOnline.textContent = `${online} Online � ${limit} Bots Limit`;
   const elBadgeCount = document.getElementById('badge-accounts-count');
   if (elBadgeCount) elBadgeCount.textContent = total;
 
@@ -717,7 +717,7 @@ function handleVoiceGuildChange(accountId) {
   guild.voiceChannels.forEach(ch => {
     const opt = document.createElement('option');
     opt.value = ch.id;
-    opt.textContent = `🔊 ${ch.name}`;
+    opt.textContent = `?? ${ch.name}`;
     if (ch.id === savedChannelId) opt.selected = true;
     channelSelect.appendChild(opt);
   });
@@ -834,7 +834,7 @@ function populateMusicBotSelect() {
   if (onlineBots.length > 0) {
     const allOpt = document.createElement('option');
     allOpt.value = 'ALL_BOTS';
-    allOpt.textContent = `⚡ ALL BOTS (${onlineBots.length} Bots Synced Play)`;
+    allOpt.textContent = `? ALL BOTS (${onlineBots.length} Bots Synced Play)`;
     if (state.selectedMusicBotId === 'ALL_BOTS' || !state.selectedMusicBotId) allOpt.selected = true;
     botSelect.appendChild(allOpt);
   }
@@ -931,7 +931,7 @@ function handleMusicGuildChange() {
     guild.voiceChannels.forEach(ch => {
       const opt = document.createElement('option');
       opt.value = ch.id;
-      opt.textContent = `🔊 ${ch.name}`;
+      opt.textContent = `?? ${ch.name}`;
       if (ch.id === activeChanId) opt.selected = true;
       voiceSelect.appendChild(opt);
     });
@@ -949,7 +949,7 @@ async function connectAllBotsToVoice() {
   }
 
   try {
-    showToast('🚀 Connecting ALL your bots to Voice Channel...', 'info');
+    showToast('?? Connecting ALL your bots to Voice Channel...', 'info');
     const token = localStorage.getItem('exc_user_token') || localStorage.getItem('token') || '';
     const res = await fetch('/api/accounts/voice/join-all', {
       method: 'POST',
@@ -967,7 +967,7 @@ async function connectAllBotsToVoice() {
     });
     const data = await res.json();
     if (data.success) {
-      showToast(`🎉 Connected ${data.joinedCount || 'all'} bots to VC 24/7!`, 'success');
+      showToast(`?? Connected ${data.joinedCount || 'all'} bots to VC 24/7!`, 'success');
       loadActivePlayer();
     } else {
       showToast(data.error || 'Failed to connect all bots', 'error');
@@ -1050,7 +1050,8 @@ async function executeMusicSearch() {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const data = await res.json();
-    if (!data.success || !data.result.tracks || data.result.tracks.length === 0) {
+    if (!data.success) { return showToast(data.error || 'Failed to search tracks', 'error'); }
+    if (!data.result || !data.result.tracks || data.result.tracks.length === 0) {
       return showToast('No tracks found for that search', 'warn');
     }
 
@@ -1085,7 +1086,7 @@ function renderSearchResults(tracks) {
       <img class="search-thumb" src="${t.info.artworkUrl || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'}" alt="Cover">
       <div class="search-info">
         <div class="search-title">${escapeHTML(t.info.title)}</div>
-        <div class="search-author">${escapeHTML(t.info.author)} • ${formatDuration(t.info.length)}</div>
+        <div class="search-author">${escapeHTML(t.info.author)} � ${formatDuration(t.info.length)}</div>
       </div>
       <div style="display:flex;gap:6px;">
         <button class="btn btn-sm btn-primary" onclick="playSearchTrack('${encodeURIComponent(JSON.stringify(t))}')">
@@ -1128,7 +1129,7 @@ async function playTrackDirect(track) {
     const data = await res.json();
     if (data.success) {
       if (data.massPlay) {
-        showToast(`🔥 Playing "${track.info.title}" on ALL ${data.count} bots!`, 'success');
+        showToast(`?? Playing "${track.info.title}" on ALL ${data.count} bots!`, 'success');
       } else {
         showToast(data.result?.status === 'playing' ? `Now playing: ${track.info.title}` : `Added to queue: ${track.info.title}`, 'success');
       }
@@ -1161,7 +1162,7 @@ async function addPlaylistToQueue(tracks) {
     const data = await res.json();
     if (data.success) {
       if (data.massPlay) {
-        showToast(`🔥 Playing ${data.count} tracks on ALL ${data.botCount || ''} bots!`, 'success');
+        showToast(`?? Playing ${data.count} tracks on ALL ${data.botCount || ''} bots!`, 'success');
       } else {
         showToast(`Added ${data.count} songs from playlist to queue!`, 'success');
       }
@@ -1225,7 +1226,7 @@ document.getElementById('btn-sync-bots')?.addEventListener('click', async () => 
     });
     const data = await res.json();
     if (data.success) {
-      showToast(`⚡ Synchronized ${data.syncedBots} bots to exact track & position!`, 'success');
+      showToast(`? Synchronized ${data.syncedBots} bots to exact track & position!`, 'success');
       fetchPlayerState();
     } else {
       showToast(data.error || 'Failed to sync bots', 'warning');
@@ -1260,10 +1261,10 @@ document.getElementById('btn-loop-mode')?.addEventListener('click', async () => 
     }
     if (state.activePlayer) state.activePlayer.loop = nextMode;
     const txt = document.getElementById('loop-mode-text');
-    if (txt) txt.textContent = nextMode === 'track' ? 'TRACK 🔂' : (nextMode === 'queue' ? 'QUEUE 🔁' : 'LOOP: OFF');
+    if (txt) txt.textContent = nextMode === 'track' ? 'TRACK ??' : (nextMode === 'queue' ? 'QUEUE ??' : 'LOOP: OFF');
     const pillTxt = document.getElementById('filter-loop-label');
-    if (pillTxt) pillTxt.textContent = nextMode === 'track' ? 'Loop: Track 🔂' : (nextMode === 'queue' ? 'Loop: Queue 🔁' : 'Loop: OFF');
-    showToast(nextMode === 'track' ? '🔂 Loop: Single Song Repeats Forever' : (nextMode === 'queue' ? '🔁 Loop: Entire Queue Repeats' : 'Loop: OFF'), 'info');
+    if (pillTxt) pillTxt.textContent = nextMode === 'track' ? 'Loop: Track ??' : (nextMode === 'queue' ? 'Loop: Queue ??' : 'Loop: OFF');
+    showToast(nextMode === 'track' ? '?? Loop: Single Song Repeats Forever' : (nextMode === 'queue' ? '?? Loop: Entire Queue Repeats' : 'Loop: OFF'), 'info');
   } catch (e) {}
 });
 
@@ -1394,11 +1395,11 @@ function updateNowPlayingUI(player) {
   }
 
   if (loopTxt && player.loop) {
-    loopTxt.textContent = player.loop === 'track' ? 'TRACK 🔂' : (player.loop === 'queue' ? 'QUEUE 🔁' : 'LOOP: OFF');
+    loopTxt.textContent = player.loop === 'track' ? 'TRACK ??' : (player.loop === 'queue' ? 'QUEUE ??' : 'LOOP: OFF');
   }
   const pillTxt = document.getElementById('filter-loop-label');
   if (pillTxt && player.loop) {
-    pillTxt.textContent = player.loop === 'track' ? 'Loop: Track 🔂' : (player.loop === 'queue' ? 'Loop: Queue 🔁' : 'Loop: OFF');
+    pillTxt.textContent = player.loop === 'track' ? 'Loop: Track ??' : (player.loop === 'queue' ? 'Loop: Queue ??' : 'Loop: OFF');
   }
 
   updatePlayPauseButton();
@@ -1932,7 +1933,7 @@ function onMassGuildChange() {
   guild.voiceChannels.forEach(ch => {
     const opt = document.createElement('option');
     opt.value = ch.id;
-    opt.textContent = `🔊 ${ch.name}`;
+    opt.textContent = `?? ${ch.name}`;
     channelSelect.appendChild(opt);
   });
 }
@@ -1982,7 +1983,7 @@ async function executeMassJoinVoice() {
       throw new Error(data.error || 'Failed to join bots');
     }
 
-    showToast(`🎉 Success! ${data.joined}/${data.total} bots joined "${data.channelName}" (24/7: ${keep247 ? 'ACTIVE' : 'OFF'})!`, 'success');
+    showToast(`?? Success! ${data.joined}/${data.total} bots joined "${data.channelName}" (24/7: ${keep247 ? 'ACTIVE' : 'OFF'})!`, 'success');
     loadAccounts();
     renderVoiceManagerCards();
   } catch (err) {
@@ -2016,7 +2017,7 @@ async function executeMassLeaveVoice() {
       throw new Error(data.error || 'Failed to leave voice');
     }
 
-    showToast(`✅ Disconnected all bots from voice.`, 'info');
+    showToast(`? Disconnected all bots from voice.`, 'info');
     loadAccounts();
     renderVoiceManagerCards();
   } catch (err) {
@@ -2032,7 +2033,7 @@ async function loadGuildsForLeave() {
   const selectEl = document.getElementById('leave-guild-select');
   if (!selectEl) return;
 
-  selectEl.innerHTML = '<option value="">⌛ Loading joined servers...</option>';
+  selectEl.innerHTML = '<option value="">? Loading joined servers...</option>';
 
   try {
     const token = localStorage.getItem('exc_user_token') || localStorage.getItem('token') || '';
@@ -2074,7 +2075,7 @@ async function loadGuildsForLeave() {
     const botSelectEl = document.getElementById('leave-bot-select');
     if (botSelectEl) {
       const onlineBots = state.accounts ? state.accounts.filter(a => a.status === 'online') : [];
-      botSelectEl.innerHTML = '<option value="ALL_BOTS">👑 ALL BOTS (Mass Server Leave)</option>' +
+      botSelectEl.innerHTML = '<option value="ALL_BOTS">?? ALL BOTS (Mass Server Leave)</option>' +
         onlineBots.map(b => `<option value="${b.id}">${escapeHTML(b.label || b.user?.username || b.id)}</option>`).join('');
     }
   } catch (err) {
@@ -2101,8 +2102,8 @@ async function submitPermanentServerLeave() {
   const useProxy = proxyCheckbox ? proxyCheckbox.checked : true;
 
   const confirmMsg = isMass
-    ? `⚠️ PERMANENT SERVER LEAVE WARNING:\n\nAre you sure you want ALL BOTS to leave:\n"${selectedServerName}"?\n\nThis will permanently delete 24/7 Stay rules, disconnect bots from voice, and exit the server safely with proxy rotation.\n\nProceed?`
-    : `⚠️ PERMANENT SERVER LEAVE WARNING:\n\nAre you sure you want this bot to permanently leave:\n"${selectedServerName}"?\n\n24/7 rules will be erased and the bot will exit the server.\n\nProceed?`;
+    ? `?? PERMANENT SERVER LEAVE WARNING:\n\nAre you sure you want ALL BOTS to leave:\n"${selectedServerName}"?\n\nThis will permanently delete 24/7 Stay rules, disconnect bots from voice, and exit the server safely with proxy rotation.\n\nProceed?`
+    : `?? PERMANENT SERVER LEAVE WARNING:\n\nAre you sure you want this bot to permanently leave:\n"${selectedServerName}"?\n\n24/7 rules will be erased and the bot will exit the server.\n\nProceed?`;
 
   if (!confirm(confirmMsg)) return;
 
@@ -2140,7 +2141,7 @@ async function submitPermanentServerLeave() {
     }
 
     const count = data.leftCount !== undefined ? data.leftCount : 1;
-    showToast(`✅ Permanently left "${data.guildName || selectedServerName}" across ${count} bot(s)!`, 'success');
+    showToast(`? Permanently left "${data.guildName || selectedServerName}" across ${count} bot(s)!`, 'success');
 
     await loadGuildsForLeave();
     loadAccounts();
@@ -2252,7 +2253,7 @@ async function loadSavedTokensIntoManager() {
       msg.textContent = `Error: ${err.message}`;
     }
   } finally {
-    if (btn) btn.innerHTML = '<span style="font-size: 1.1rem;">📁</span> Load Saved';
+    if (btn) btn.innerHTML = '<span style="font-size: 1.1rem;">??</span> Load Saved';
   }
 }
 
@@ -2296,7 +2297,7 @@ async function submitMassTokens() {
       msg.innerHTML = `<b>Success!</b> Added <b>${data.addedCount}</b> token(s). ${data.skippedCount ? `(${data.skippedCount} skipped as duplicate/limit)` : ''}`;
     }
 
-    if (window.showToast) showToast(`✅ Added ${data.addedCount} selfbot token(s)! Auto-connecting now...`, 'success');
+    if (window.showToast) showToast(`? Added ${data.addedCount} selfbot token(s)! Auto-connecting now...`, 'success');
 
     if (typeof loadAccounts === 'function') loadAccounts();
 
@@ -2315,7 +2316,7 @@ async function submitMassTokens() {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = '<span style="font-size: 1.1rem;">💾</span> Save Tokens';
+      btn.innerHTML = '<span style="font-size: 1.1rem;">??</span> Save Tokens';
     }
   }
 }
@@ -2337,9 +2338,9 @@ setInterval(() => {
 }, 45 * 1000);
 
 
-// ══════════════════════════════════════════════════════════════════
+// ------------------------------------------------------------------
 // EXACT COMMAND RUNNER (from dashboard & dashboard sb html)
-// ══════════════════════════════════════════════════════════════════
+// ------------------------------------------------------------------
 async function sendCmd(cmd) {
   const token = localStorage.getItem('exc_user_token') || localStorage.getItem('token') || '';
   try {

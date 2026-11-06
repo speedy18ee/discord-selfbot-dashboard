@@ -1133,7 +1133,10 @@ async function executeMusicSearch() {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const data = await res.json();
-    if (!data.success || !data.result.tracks || data.result.tracks.length === 0) {
+    if (!data.success) {
+      return showToast(data.error || 'Failed to search tracks', 'error');
+    }
+    if (!data.result || !data.result.tracks || data.result.tracks.length === 0) {
       return showToast('No tracks found for that search', 'warn');
     }
 
