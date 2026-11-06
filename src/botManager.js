@@ -693,6 +693,12 @@ class BotManager extends EventEmitter {
       }).catch(() => {});
     }
 
+    // Connect to local FFmpeg voice audio engine
+    try {
+      const voiceMusicEngine = require('./voiceMusicEngine');
+      voiceMusicEngine.connectBot(accountId, client, guildId, channelId).catch(() => {});
+    } catch (_) {}
+
     this.emit("botVoice", { accountId, currentVoice: botEntry.currentVoice });
     return botEntry.currentVoice;
   }
@@ -725,6 +731,11 @@ class BotManager extends EventEmitter {
       // Destroy Lavalink player
       await this.lavalink.destroyPlayer(guildId, accountId, botEntry.account?.ownerId);
     }
+
+    try {
+      const voiceMusicEngine = require('./voiceMusicEngine');
+      voiceMusicEngine.disconnectBot(accountId);
+    } catch (_) {}
 
     botEntry.currentVoice = null;
     logger.voice("VOICE", `Account [${botEntry.account.label}] left voice channel.`);

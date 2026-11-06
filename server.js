@@ -394,6 +394,8 @@ if (!lavalinkNode || !lavalinkNode.url || lavalinkNode.url === 'lavalink.server.
 const lavalink = new LavalinkClient(lavalinkNode);
 const botManager = new BotManager(lavalink);
 global.botManager = botManager;
+const voiceMusicEngine = require('./src/voiceMusicEngine');
+global.voiceMusicEngine = voiceMusicEngine;
 
 // Start Lavalink connection
 lavalink.connect();
@@ -455,10 +457,7 @@ app.post('/api/system/restart', (req, res) => {
 });
 
 app.get('/api/accounts', async (req, res) => {
-  let accounts = botManager.getAllBotsStatus(req.user.userId);
-  if (accounts.length === 0) {
-    accounts = botManager.getAllBotsStatus(null);
-  }
+  const accounts = botManager.getAllBotsStatus(req.user.userId);
   res.json({
     success: true,
     accounts,
@@ -995,24 +994,31 @@ app.post('/api/music/custom-audio', async (req, res) => {
       });
     }
 
-    // 3. Load track via Lavalink
-    let result = await lavalink.loadTracks(finalAudioUrl);
-    if ((!result || !result.tracks || result.tracks.length === 0) && savedSong?.mirrorUrl) {
-      result = await lavalink.loadTracks(savedSong.mirrorUrl);
-      if (result && result.tracks && result.tracks.length > 0) {
-        finalAudioUrl = savedSong.mirrorUrl;
+    // 3. Load track via Lavalink (with local FFmpeg Voice Engine support)
+    let result = null;
+    try {
+      result = await lavalink.loadTracks(finalAudioUrl);
+      if ((!result || !result.tracks || result.tracks.length === 0) && savedSong?.mirrorUrl) {
+        result = await lavalink.loadTracks(savedSong.mirrorUrl);
+        if (result && result.tracks && result.tracks.length > 0) {
+          finalAudioUrl = savedSong.mirrorUrl;
+        }
       }
-    }
+    } catch (_) {}
 
-    if (!result || !result.tracks || result.tracks.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Lavalink could not decode this audio stream. Please ensure the file is a valid MP3.'
-      });
-    }
-
-    const track = result.tracks[0];
     const displayTitle = title || filename || (finalAudioUrl.includes('.mp3') ? 'Custom MP3 Audio' : 'Recorded Voice Note');
+    const track = (result && result.tracks && result.tracks.length > 0) ? result.tracks[0] : {
+      encoded: null,
+      info: {
+        title: displayTitle,
+        author: finalAudioUrl.includes('.mp3') ? 'Uploaded MP3' : 'Voice Recording',
+        length: 0,
+        identifier: displayTitle,
+        isSeekable: false,
+        isStream: true,
+        uri: finalAudioUrl
+      }
+    };
     track.info.title = displayTitle;
     track.info.author = finalAudioUrl.includes('.mp3') ? 'Uploaded MP3' : 'Voice Recording';
 
@@ -1070,6 +1076,16 @@ app.post('/api/music/custom-audio', async (req, res) => {
           botCount: userBots.length
         });
       }
+
+      // Play through local FFmpeg Voice Engine directly (exact system from 2nd dashboard)
+      const directSource = (typeof localFilePath === 'string' && fs.existsSync(localFilePath)) ? localFilePath : finalAudioUrl;
+      voiceMusicEngine.play(directSource, {
+        title: displayTitle,
+        volume: req.body.volume || 10000,
+        loop: req.body.loop === true || req.body.loop === 'track',
+        guildId: targetGuildId,
+        channelId: targetChannelId
+      }).catch(e => logger.warn('VOICE_ENGINE', `FFmpeg play note: ${e.message}`));
 
       // 1. Pre-buffer track across all online bots in PAUSED state at 0:00
       await Promise.allSettled(userBots.map(async (ub) => {
@@ -1321,6 +1337,10 @@ app.post('/api/music/uploads/:id/play', async (req, res) => {
 });
 
 app.get('/api/music/player/:guildId', (req, res) => {
+  if (voiceMusicEngine.isPlaying || voiceMusicEngine.isPaused) {
+    return res.json({ success: true, player: voiceMusicEngine.getStatus(req.params.guildId) });
+  }
+
   const accountId = req.query.accountId || null;
   const ownerId = req.user.userId;
 
@@ -1625,6 +1645,8 @@ app.post('/api/music/player/:guildId/pause', async (req, res) => {
   try {
     const { paused, accountId } = req.body;
     const ownerId = req.user.userId;
+    if (paused === false) voiceMusicEngine.resume();
+    else voiceMusicEngine.pause();
     if (accountId === 'ALL_BOTS' || !accountId) {
       for (const p of lavalink.players.values()) {
         if (p.guildId === req.params.guildId && p.ownerId === ownerId) {
@@ -1663,6 +1685,7 @@ app.post('/api/music/player/:guildId/stop', async (req, res) => {
   try {
     const { accountId } = req.body;
     const ownerId = req.user.userId;
+    voiceMusicEngine.stop();
     if (accountId === 'ALL_BOTS' || !accountId) {
       for (const p of lavalink.players.values()) {
         if (p.guildId === req.params.guildId && p.ownerId === ownerId) {
@@ -1683,6 +1706,7 @@ app.post('/api/music/player/:guildId/volume', async (req, res) => {
     const { volume, accountId } = req.body;
     const ownerId = req.user.userId;
     const vol = parseInt(volume, 10) || 100;
+    voiceMusicEngine.setVolume(vol);
     let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
     if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
     if (accountId === 'ALL_BOTS' || !accountId || req.body.allBots === true) {
@@ -1775,6 +1799,7 @@ app.post('/api/music/player/:guildId/sync', async (req, res) => {
 
 app.post('/api/music/player/:guildId/loop', (req, res) => {
   const { mode, accountId } = req.body; // 'off', 'track', 'queue'
+  voiceMusicEngine.setLoop(mode === 'track' || mode === true);
   const ownerId = req.user.userId;
   let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
   if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
