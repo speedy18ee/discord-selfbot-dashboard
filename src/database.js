@@ -24,7 +24,13 @@ class Database {
   }
 
   loadJSON(filePath, fallback) {
-    return sqliteStore.getJSON(path.basename(filePath, '.json'), fallback, filePath);
+    const val = sqliteStore.getJSON(path.basename(filePath, '.json'), fallback, filePath);
+    if (filePath.includes('settings') && val) {
+      if (!val.lavalink || !val.lavalink.url || val.lavalink.url === 'lavalink.server.url' || val.lavalink.auth === 'youshallnotpass' || String(val.lavalink.url).includes('visihost.in')) {
+        val.lavalink = { ...config.defaultNode };
+      }
+    }
+    return val;
   }
 
   saveJSON(filePath, data, triggerSync = true) {

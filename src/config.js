@@ -9,12 +9,12 @@ function parseBoolean(val) {
 
 const lavalinkNodes = [
   {
-    name: process.env.NODE_NAME || "Lava Lenin",
-    host: "noi6.visihost.in",
-    port: 25591,
-    url: process.env.NODE_URL || "noi6.visihost.in:25591",
-    auth: process.env.NODE_AUTH || "ganahubkl",
-    secure: parseBoolean(process.env.NODE_SECURE || "false"),
+    name: process.env.NODE_NAME || "MilloHost V4 (SSL Fast)",
+    host: "lava-v4.millohost.my.id",
+    port: 443,
+    url: process.env.NODE_URL || "lava-v4.millohost.my.id:443",
+    auth: process.env.NODE_AUTH || "https://discord.gg/mjS5J2K3ep",
+    secure: parseBoolean(process.env.NODE_SECURE || "true"),
     version: 4
   }
 ];
@@ -36,12 +36,12 @@ module.exports = {
 
   // Default active Lavalink node
   defaultNode: {
-    url: process.env.NODE_URL || "noi6.visihost.in:25591",
-    name: process.env.NODE_NAME || "Lava Lenin",
-    auth: process.env.NODE_AUTH || "ganahubkl",
-    secure: parseBoolean(process.env.NODE_SECURE || "false"),
-    host: "noi6.visihost.in",
-    port: 25591,
+    url: process.env.NODE_URL || "lava-v4.millohost.my.id:443",
+    name: process.env.NODE_NAME || "MilloHost V4 (SSL Fast)",
+    auth: process.env.NODE_AUTH || "https://discord.gg/mjS5J2K3ep",
+    secure: parseBoolean(process.env.NODE_SECURE || "true"),
+    host: "lava-v4.millohost.my.id",
+    port: 443,
     version: 4
   },
   

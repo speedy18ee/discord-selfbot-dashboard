@@ -384,9 +384,13 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
   }
 });
 
-// Initialize Lavalink & Bot Manager (Using ONLY Lava Lenin node requested by user)
-const lavalinkNode = config.defaultNode;
-database.updateSettings({ lavalink: lavalinkNode });
+// Initialize Lavalink & Bot Manager
+const currentSavedSettings = database.getSettings();
+let lavalinkNode = currentSavedSettings?.lavalink;
+if (!lavalinkNode || !lavalinkNode.url || lavalinkNode.url === 'lavalink.server.url' || lavalinkNode.auth === 'youshallnotpass' || String(lavalinkNode.url).includes('visihost.in')) {
+  lavalinkNode = { ...config.defaultNode };
+  database.updateSettings({ lavalink: lavalinkNode });
+}
 const lavalink = new LavalinkClient(lavalinkNode);
 const botManager = new BotManager(lavalink);
 global.botManager = botManager;
@@ -451,7 +455,10 @@ app.post('/api/system/restart', (req, res) => {
 });
 
 app.get('/api/accounts', async (req, res) => {
-  const accounts = botManager.getAllBotsStatus(req.user.userId);
+  let accounts = botManager.getAllBotsStatus(req.user.userId);
+  if (accounts.length === 0) {
+    accounts = botManager.getAllBotsStatus(null);
+  }
   res.json({
     success: true,
     accounts,
@@ -871,7 +878,8 @@ app.post('/api/music/custom-audio', async (req, res) => {
   try {
     const { audioBase64, audioUrl: rawAudioUrl, filename, title, mode, accountId, guildId, channelId } = req.body;
     const ownerId = req.user.userId;
-    const userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
 
     // 1. Resolve target guild and voice channel automatically
     let targetGuildId = guildId;
@@ -949,7 +957,8 @@ app.post('/api/music/custom-audio', async (req, res) => {
           body: form,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-          }
+          },
+          signal: AbortSignal.timeout(5000)
         });
         const urlText = await catRes.text();
         if (urlText && urlText.trim().startsWith('http')) {
@@ -1015,13 +1024,15 @@ app.post('/api/music/custom-audio', async (req, res) => {
         return res.status(400).json({ success: false, error: 'No online bots found under your account to play music.' });
       }
 
-      logger.music('MASS_PLAY', `User [${req.user.username}] triggering ALL BOTS (${userBots.length}) audio playback: "${displayTitle}" at 1000% volume with 15dB 60Hz punch`);
+      logger.music('MASS_PLAY', `User [${req.user.username}] triggering ALL BOTS (${userBots.length}) audio playback: "${displayTitle}" at clean 100% volume`);
 
       // Ensure all online bots join target voice channel
       let joinedAny = false;
       for (const ub of userBots) {
         const b = botManager.bots.get(ub.id);
-        if (b && targetChannelId && b.currentVoice?.channelId !== targetChannelId) {
+        const p = lavalink.getPlayer(targetGuildId, ub.id, ownerId);
+        const needsVoiceJoin = !b?.currentVoice?.channelId || b.currentVoice.channelId !== targetChannelId || !p || !p.voiceConnected || !p.voice?.token;
+        if (b && targetChannelId && needsVoiceJoin) {
           try {
             await botManager.joinVoice(ub.id, targetChannelId);
             joinedAny = true;
@@ -1042,7 +1053,7 @@ app.post('/api/music/custom-audio', async (req, res) => {
             userId: b?.client?.user?.id || null,
             ownerId
           });
-          p.volume = 1000;
+          p.volume = 100;
           p.filters.bassboost = false;
           p.queue.push(track);
           lavalink.emit('queueUpdate', p);
@@ -1072,7 +1083,7 @@ app.post('/api/music/custom-audio', async (req, res) => {
           ownerId
         });
         p.queue = [];
-        p.volume = p.volume || 1000;
+        p.volume = p.volume || 100;
         p.filters.bassboost = req.body.bass === true;
         p.currentTrack = track;
         if (req.body.loop === true || req.body.loop === 'track') {
@@ -1194,7 +1205,8 @@ app.post('/api/music/uploads/:id/play', async (req, res) => {
     // Re-run handler logic
     const { audioUrl, title, mode, loop } = req.body;
     const ownerId = req.user.userId;
-    const userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
 
     let targetGuildId = null;
     let targetChannelId = null;
@@ -1251,7 +1263,7 @@ app.post('/api/music/uploads/:id/play', async (req, res) => {
     }
 
     const existingPlayer = lavalink.getPlayer(targetGuildId, null, ownerId);
-    const currentVol = existingPlayer?.volume || 1000;
+    const currentVol = existingPlayer?.volume || 100;
     const bassActive = existingPlayer?.filters?.bassboost === true;
 
     // 1. Pre-buffer on ALL bots in PAUSED state first
@@ -1336,7 +1348,8 @@ app.post('/api/music/player/:guildId/play', async (req, res) => {
     if (!track) return res.status(400).json({ success: false, error: 'Track payload required' });
     const ownerId = req.user.userId;
 
-    const userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
     const isSingle = req.body.forceSingle === true;
     const isMass = !isSingle && userBots.length > 0;
 
@@ -1393,14 +1406,16 @@ app.post('/api/music/player/:guildId/play', async (req, res) => {
       const joinPromises = [];
       for (const ub of userBots) {
         const bot = botManager.bots.get(ub.id);
-        if (bot && targetVcId && bot.currentVoice?.channelId !== targetVcId) {
+        const p = lavalink.getPlayer(req.params.guildId, ub.id, ownerId);
+        const needsVoiceJoin = !bot?.currentVoice?.channelId || bot.currentVoice.channelId !== targetVcId || !p || !p.voiceConnected || !p.voice?.token;
+        if (bot && targetVcId && needsVoiceJoin) {
           joinPromises.push(botManager.joinVoice(ub.id, targetVcId).catch(() => {}));
         }
       }
       if (joinPromises.length > 0) {
         await Promise.all(joinPromises);
         // Short breather to allow Discord Gateway voice dispatch to complete
-        await new Promise(r => setTimeout(r, 600));
+        await new Promise(r => setTimeout(r, 800));
       }
 
       // Check current volume / bass settings for this guild & key
@@ -1495,7 +1510,8 @@ app.post('/api/music/player/:guildId/playlist', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Tracks array required' });
     }
     const ownerId = req.user.userId;
-    const userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
     const isSingle = req.body.singleBot === true;
     const isMass = !isSingle;
 
@@ -1531,6 +1547,7 @@ app.post('/api/music/player/:guildId/playlist', async (req, res) => {
 
       const existingPlayer = lavalink.getPlayer(req.params.guildId, null, ownerId);
       const bassActive = existingPlayer?.filters?.bassboost === true;
+      const currentVol = existingPlayer?.volume || 100;
 
       // 2. Pre-buffer first track in PAUSED state across all bots with identical queues
       await Promise.allSettled(userBots.map(async (ub) => {
@@ -1544,7 +1561,7 @@ app.post('/api/music/player/:guildId/playlist', async (req, res) => {
           ownerId
         });
         player.queue = [...restTracks];
-        player.volume = 1000;
+        player.volume = currentVol || 100;
         player.filters.bassboost = bassActive;
         player.currentTrack = firstTrack;
         player.playing = true;
@@ -1665,8 +1682,9 @@ app.post('/api/music/player/:guildId/volume', async (req, res) => {
   try {
     const { volume, accountId } = req.body;
     const ownerId = req.user.userId;
-    const vol = parseInt(volume, 10) || 1000;
-    const userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    const vol = parseInt(volume, 10) || 100;
+    let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
     if (accountId === 'ALL_BOTS' || !accountId || req.body.allBots === true) {
       await Promise.allSettled(userBots.map(async (ub) => {
         return lavalink.setVolume(req.params.guildId, vol, ub.id, ownerId);
@@ -1685,7 +1703,8 @@ app.post('/api/music/player/:guildId/seek', async (req, res) => {
     const { position, accountId } = req.body;
     const ownerId = req.user.userId;
     const pos = Math.max(0, parseInt(position, 10) || 0);
-    const userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
     if (accountId === 'ALL_BOTS' || !accountId || req.body.allBots === true) {
       await Promise.allSettled(userBots.map(async (ub) => {
         const bot = botManager.bots.get(ub.id);
@@ -1706,7 +1725,8 @@ app.post('/api/music/player/:guildId/seek', async (req, res) => {
 app.post('/api/music/player/:guildId/sync', async (req, res) => {
   try {
     const ownerId = req.user.userId;
-    const userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
     if (userBots.length === 0) return res.status(400).json({ success: false, error: 'No online bots' });
 
     let leadPlayer = null;
@@ -1742,7 +1762,7 @@ app.post('/api/music/player/:guildId/sync', async (req, res) => {
         track: { encoded: track.encoded },
         position: pos,
         paused: false,
-        volume: Math.min(1000, leadPlayer.volume),
+        volume: Math.min(200, leadPlayer.volume),
         filters: filtersPayload
       }, userId);
     }));
@@ -1756,7 +1776,8 @@ app.post('/api/music/player/:guildId/sync', async (req, res) => {
 app.post('/api/music/player/:guildId/loop', (req, res) => {
   const { mode, accountId } = req.body; // 'off', 'track', 'queue'
   const ownerId = req.user.userId;
-  const userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+  let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+  if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
   if (accountId === 'ALL_BOTS' || !accountId) {
     for (const ub of userBots) {
       lavalink.setLoop(req.params.guildId, mode, ub.id, ownerId);
@@ -1771,7 +1792,8 @@ app.post('/api/music/player/:guildId/loop', (req, res) => {
 app.post('/api/music/loop/all', (req, res) => {
   const { mode } = req.body; // 'off', 'track', 'queue'
   const ownerId = req.user.userId;
-  const userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+  let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+  if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
   const targetGuilds = new Set();
   for (const ub of userBots) {
     if (ub.currentVoice?.guildId) targetGuilds.add(ub.currentVoice.guildId);
@@ -1786,7 +1808,8 @@ app.post('/api/music/player/:guildId/filter', async (req, res) => {
   try {
     const { filterName, enabled, accountId } = req.body;
     const ownerId = req.user.userId;
-    const userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
+    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
     if (accountId === 'ALL_BOTS' || !accountId || req.body.allBots === true) {
       await Promise.allSettled(userBots.map(async (ub) => {
         return lavalink.applyFilters(req.params.guildId, filterName, !!enabled, ub.id, ownerId);
@@ -2018,11 +2041,11 @@ app.post('/api/command', async (req, res) => {
       }
     }
     else if (lowerCmd === 'max') {
-      currentVolumeMultiplier = 100.0;
+      currentVolumeMultiplier = 2.0;
       for (const guildId of targetGuilds) {
-        await lavalink.setVolume(guildId, 10000, 'ALL_BOTS', userId);
+        await lavalink.setVolume(guildId, 200, 'ALL_BOTS', userId);
       }
-      response = '💥 MAXIMUM VOLUME (10000%)';
+      response = '💥 Maximum Volume (200%)';
     }
     else if (lowerCmd === 'blast') {
       blastMode = !blastMode;
@@ -2037,11 +2060,11 @@ app.post('/api/command', async (req, res) => {
     }
     else if (lowerCmd === 'doubleblast') {
       blastMode = true; pungiMode = false; superLoudMode = false; forceLoudMode = false;
-      blastVolume = 100.0; currentVolumeMultiplier = 100.0;
+      blastVolume = 2.0; currentVolumeMultiplier = 2.0;
       for (const guildId of targetGuilds) {
         await lavalink.applyFilters(guildId, 'doubleblast', true, 'ALL_BOTS', userId);
         await lavalink.applyFilters(guildId, 'blast', true, 'ALL_BOTS', userId);
-        await lavalink.setVolume(guildId, 10000, 'ALL_BOTS', userId);
+        await lavalink.setVolume(guildId, 200, 'ALL_BOTS', userId);
       }
       response = '💥💥 DOUBLE BLAST ACTIVATED!';
     }

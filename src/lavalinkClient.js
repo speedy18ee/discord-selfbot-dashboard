@@ -128,41 +128,32 @@ class LavalinkSession extends EventEmitter {
             player.connected = msg.state.connected ?? true;
 
             // Precision Multi-Bot Lockstep Sync:
-            // If one bot is ahead (front) and one is behind (last), eliminate the echo by momentarily
-            // pausing the front bot for the exact millisecond delta so the trailing bot catches up into 100% unison.
-            // Zero stream buffering, zero seeking, zero audio tearing!
-            if (player.playing && player.position > 1000 && !player._syncedInitial) {
+            // Eliminates reverb/echo between bots playing in the same guild
+            if (player.playing && player.position > 500 && (!player._lastSyncTime || Date.now() - player._lastSyncTime > 4000)) {
               const uniquePlayers = new Set(this.client.players.values());
               for (const p of uniquePlayers) {
-                if (p.guildId === msg.guildId && (!player.ownerId || p.ownerId === player.ownerId) && p !== player && p.playing && p.position > 1000) {
+                if (p.guildId === msg.guildId && (!player.ownerId || p.ownerId === player.ownerId) && p !== player && p.playing && p.position > 500) {
                   const diff = (player.position || 0) - (p.position || 0);
-                  if (diff >= 60 && diff <= 900) {
-                    // THIS bot is the front bot (ahead). Pause THIS bot for `diff` ms so `p` catches up!
-                    player.paused = true;
-                    player._syncedInitial = true;
-                    p._syncedInitial = true;
-                    this.client.sendPlayerUpdate(msg.guildId, { paused: true }, this.userId).catch(() => {});
-                    setTimeout(() => {
-                      player.paused = false;
-                      this.client.sendPlayerUpdate(msg.guildId, { paused: false }, this.userId).catch(() => {});
-                      logger.success('SYNC', `Locked bots into lockstep unison! Paused front bot for ${diff}ms (drift eliminated)`);
-                    }, diff);
-                  } else if (diff <= -60 && diff >= -900) {
-                    // The other bot `p` is the front bot (ahead). Pause `p` for `|diff|` ms so THIS bot catches up!
+                  if (Math.abs(diff) >= 25 && Math.abs(diff) <= 1200) {
+                    player._lastSyncTime = Date.now();
+                    p._lastSyncTime = Date.now();
+                    const aheadPlayer = diff > 0 ? player : p;
                     const gap = Math.abs(diff);
-                    p.paused = true;
-                    player._syncedInitial = true;
-                    p._syncedInitial = true;
-                    this.client.sendPlayerUpdate(msg.guildId, { paused: true }, p.userId).catch(() => {});
+                    aheadPlayer.paused = true;
+                    this.client.sendPlayerUpdate(msg.guildId, { paused: true }, aheadPlayer.userId).catch(() => {});
                     setTimeout(() => {
-                      p.paused = false;
-                      this.client.sendPlayerUpdate(msg.guildId, { paused: false }, p.userId).catch(() => {});
-                      logger.success('SYNC', `Locked bots into lockstep unison! Paused front bot for ${gap}ms (drift eliminated)`);
+                      aheadPlayer.paused = false;
+                      this.client.sendPlayerUpdate(msg.guildId, { paused: false }, aheadPlayer.userId).catch(() => {});
+                      logger.success('SYNC', `Locked bots into lockstep unison! Paused front bot for ${gap}ms (reverb eliminated)`);
                     }, gap);
-                  } else if (Math.abs(diff) < 60) {
-                    // Perfectly in phase (< 60ms is tight sync in Discord voice)
-                    player._syncedInitial = true;
-                    p._syncedInitial = true;
+                  } else if (Math.abs(diff) > 1200) {
+                    // Large drift: snap trailing player position directly
+                    player._lastSyncTime = Date.now();
+                    p._lastSyncTime = Date.now();
+                    const aheadPos = Math.max(player.position || 0, p.position || 0);
+                    const trailingPlayer = (player.position || 0) < (p.position || 0) ? player : p;
+                    this.client.sendPlayerUpdate(msg.guildId, { position: aheadPos }, trailingPlayer.userId).catch(() => {});
+                    logger.success('SYNC', `Snapped trailing bot to ${aheadPos}ms to eliminate echo`);
                   }
                   break;
                 }
@@ -633,7 +624,7 @@ class LavalinkClient extends EventEmitter {
       channelId: options.channelId || null,
       playing: false,
       paused: false,
-      volume: 1000,
+      volume: 100,
       position: 0,
       ping: 0,
       connected: false,
@@ -885,33 +876,32 @@ class LavalinkClient extends EventEmitter {
     const filtersPayload = {};
 
     // 1. Raw DSP Volume Multiplier (filters.volume in Lavalink v4)
-    // Capped at 5.0 max (500%) per Lavadsp VolumePcmAudioFilter specifications
-    let volMultiplier = Math.max(0.05, (player.volume || 100) / 100.0);
-    volMultiplier = Math.min(5.0, Math.max(0.05, volMultiplier));
+    // Cap at 1.0 (100%) to prevent distortion. Master volume (calculateMasterVolume) handles gain.
+    let volMultiplier = Math.max(0.05, Math.min(1.0, (player.volume || 100) / 100.0));
     filtersPayload.volume = Number(volMultiplier.toFixed(2));
 
-    // Preset High Volume Boosts (Clean, loud, smooth stereo mixing - NO distortion/pitch artifacts!)
+    // Preset Boosts — channelMix values capped at 1.0 to prevent BSSSSS clipping/distortion
     if (player.filters.doubleblast) {
-      filtersPayload.volume = 5.0;
-      filtersPayload.channelMix = { leftToLeft: 2.2, rightToRight: 2.2, leftToRight: 0.3, rightToLeft: 0.3 };
+      filtersPayload.volume = 1.0;
+      filtersPayload.channelMix = { leftToLeft: 1.0, rightToRight: 1.0, leftToRight: 0.15, rightToLeft: 0.15 };
     } else if (player.filters.blast) {
-      filtersPayload.volume = 5.0;
-      filtersPayload.channelMix = { leftToLeft: 1.8, rightToRight: 1.8, leftToRight: 0.2, rightToLeft: 0.2 };
+      filtersPayload.volume = 1.0;
+      filtersPayload.channelMix = { leftToLeft: 1.0, rightToRight: 1.0, leftToRight: 0.1, rightToLeft: 0.1 };
     } else if (player.filters.max) {
-      filtersPayload.volume = 5.0;
-      filtersPayload.channelMix = { leftToLeft: 2.5, rightToRight: 2.5, leftToRight: 0.4, rightToLeft: 0.4 };
+      filtersPayload.volume = 1.0;
+      filtersPayload.channelMix = { leftToLeft: 1.0, rightToRight: 1.0, leftToRight: 0.2, rightToLeft: 0.2 };
     } else if (player.filters.forceLoud) {
-      filtersPayload.volume = 5.0;
-      filtersPayload.channelMix = { leftToLeft: 2.0, rightToRight: 2.0, leftToRight: 0.3, rightToLeft: 0.3 };
+      filtersPayload.volume = 1.0;
+      filtersPayload.channelMix = { leftToLeft: 1.0, rightToRight: 1.0, leftToRight: 0.15, rightToLeft: 0.15 };
     } else if (player.filters.superLoud) {
-      filtersPayload.volume = 5.0;
-      filtersPayload.channelMix = { leftToLeft: 1.6, rightToRight: 1.6, leftToRight: 0.2, rightToLeft: 0.2 };
+      filtersPayload.volume = 1.0;
+      filtersPayload.channelMix = { leftToLeft: 1.0, rightToRight: 1.0, leftToRight: 0.1, rightToLeft: 0.1 };
     } else if (player.filters.loudMode || player.filters.loud) {
-      filtersPayload.volume = 4.0;
-      filtersPayload.channelMix = { leftToLeft: 1.4, rightToRight: 1.4, leftToRight: 0.1, rightToLeft: 0.1 };
+      filtersPayload.volume = 1.0;
+      filtersPayload.channelMix = { leftToLeft: 1.0, rightToRight: 1.0, leftToRight: 0.05, rightToLeft: 0.05 };
     } else if (player.filters.pungi) {
-      filtersPayload.volume = 4.5;
-      filtersPayload.channelMix = { leftToLeft: 1.8, rightToRight: 1.8, leftToRight: 0.2, rightToLeft: 0.2 };
+      filtersPayload.volume = 1.0;
+      filtersPayload.channelMix = { leftToLeft: 1.0, rightToRight: 1.0, leftToRight: 0.1, rightToLeft: 0.1 };
     }
 
     // Default Stereo Channel Mix
