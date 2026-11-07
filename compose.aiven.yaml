@@ -4,19 +4,15 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "24681:24681"
+      - "3000:3000"
     environment:
-      - PORT=24681
+      - PORT=3000
       - NODE_ENV=production
-      - DASHBOARD_ID=${DASHBOARD_ID:-}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-lahari18ee}
-      - MYSQL_HOST=${MYSQL_HOST:-mysql-12c6eeb0-dhanushdhnu390-0563.d.aivencloud.com}
-      - MYSQL_PORT=${MYSQL_PORT:-21349}
-      - MYSQL_USER=${MYSQL_USER:-avnadmin}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
-      - MYSQL_DATABASE=${MYSQL_DATABASE:-defaultdb}
-      - MYSQL_SSL=${MYSQL_SSL:-REQUIRED}
-      - MYSQL_URI=${MYSQL_URI}
+      - MYSQL_HOST=mysql-24ffdf5c-vishnureddy43938-2e52.c.aivencloud.com
+      - MYSQL_PORT=14280
+      - MYSQL_USER=avnadmin
+      - MYSQL_DATABASE=defaultdb
+      - MYSQL_SSL=REQUIRED
     volumes:
       - app_data:/app/data
     restart: unless-stopped
