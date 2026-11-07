@@ -430,11 +430,11 @@ lavalink.on('queueEnd', player => broadcast('queueEnd', player, player.ownerId))
 
 botManager.on('botStatus', data => {
   const acc = database.getAccount(data.accountId);
-  broadcast('botStatus', { ...data, ownerId: acc?.ownerId });
+  broadcast('botStatus', { ...data, ownerId: acc?.ownerId }, acc?.ownerId);
 });
 botManager.on('botVoice', data => {
   const acc = database.getAccount(data.accountId);
-  broadcast('botVoice', { ...data, ownerId: acc?.ownerId });
+  broadcast('botVoice', { ...data, ownerId: acc?.ownerId }, acc?.ownerId);
 });
 
 // --- REST API ENDPOINTS ---
@@ -988,7 +988,6 @@ app.post('/api/music/custom-audio', async (req, res) => {
     const { audioBase64, audioUrl: rawAudioUrl, filename, title, mode, accountId, guildId, channelId } = req.body;
     const ownerId = req.user.userId;
     let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
-    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
 
     // 1. Resolve target guild and voice channel automatically
     let targetGuildId = guildId;
@@ -1332,7 +1331,6 @@ app.post('/api/music/uploads/:id/play', async (req, res) => {
     const { audioUrl, title, mode, loop } = req.body;
     const ownerId = req.user.userId;
     let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
-    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
 
     let targetGuildId = null;
     let targetChannelId = null;
@@ -1479,7 +1477,6 @@ app.post('/api/music/player/:guildId/play', async (req, res) => {
     const ownerId = req.user.userId;
 
     let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
-    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
     const isSingle = req.body.forceSingle === true;
     const isMass = !isSingle && userBots.length > 0;
 
@@ -1652,7 +1649,6 @@ app.post('/api/music/player/:guildId/playlist', async (req, res) => {
     }
     const ownerId = req.user.userId;
     let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
-    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
     const isSingle = req.body.singleBot === true;
     const isMass = !isSingle;
 
@@ -1829,7 +1825,6 @@ app.post('/api/music/player/:guildId/volume', async (req, res) => {
     const vol = parseInt(volume, 10) || 100;
     voiceMusicEngine.setVolume(vol);
     let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
-    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
     if (accountId === 'ALL_BOTS' || !accountId || req.body.allBots === true) {
       await Promise.allSettled(userBots.map(async (ub) => {
         return lavalink.setVolume(req.params.guildId, vol, ub.id, ownerId);
@@ -1849,7 +1844,6 @@ app.post('/api/music/player/:guildId/seek', async (req, res) => {
     const ownerId = req.user.userId;
     const pos = Math.max(0, parseInt(position, 10) || 0);
     let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
-    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
     if (accountId === 'ALL_BOTS' || !accountId || req.body.allBots === true) {
       await Promise.allSettled(userBots.map(async (ub) => {
         const bot = botManager.bots.get(ub.id);
@@ -1871,7 +1865,6 @@ app.post('/api/music/player/:guildId/sync', async (req, res) => {
   try {
     const ownerId = req.user.userId;
     let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
-    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
     if (userBots.length === 0) return res.status(400).json({ success: false, error: 'No online bots' });
 
     let leadPlayer = null;
@@ -1923,7 +1916,6 @@ app.post('/api/music/player/:guildId/loop', (req, res) => {
   voiceMusicEngine.setLoop(mode === 'track' || mode === true);
   const ownerId = req.user.userId;
   let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
-  if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
   if (accountId === 'ALL_BOTS' || !accountId) {
     for (const ub of userBots) {
       lavalink.setLoop(req.params.guildId, mode, ub.id, ownerId);
@@ -1939,7 +1931,6 @@ app.post('/api/music/loop/all', (req, res) => {
   const { mode } = req.body; // 'off', 'track', 'queue'
   const ownerId = req.user.userId;
   let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
-  if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
   const targetGuilds = new Set();
   for (const ub of userBots) {
     if (ub.currentVoice?.guildId) targetGuilds.add(ub.currentVoice.guildId);
@@ -1955,7 +1946,6 @@ app.post('/api/music/player/:guildId/filter', async (req, res) => {
     const { filterName, enabled, accountId } = req.body;
     const ownerId = req.user.userId;
     let userBots = botManager.getAllBotsStatus(ownerId).filter(b => b.status === 'online');
-    if (userBots.length === 0) userBots = botManager.getAllBotsStatus(null).filter(b => b.status === 'online');
     if (accountId === 'ALL_BOTS' || !accountId || req.body.allBots === true) {
       await Promise.allSettled(userBots.map(async (ub) => {
         return lavalink.applyFilters(req.params.guildId, filterName, !!enabled, ub.id, ownerId);

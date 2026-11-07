@@ -264,17 +264,7 @@ function handleServerEvent(type, data) {
 
     case 'init':
       if (Array.isArray(data.accounts)) {
-        const myKey = state.currentUser?.key || state.currentUser?.username;
-        if (myKey && myKey !== 'EXC-PREMIUM-ADMIN-LIFETIME') {
-          if (state.accounts && state.accounts.length > 0) {
-            const validIds = new Set(state.accounts.map(a => a.id));
-            state.accounts = data.accounts.filter(a => validIds.has(a.id));
-          } else {
-            state.accounts = [];
-          }
-        } else {
-          state.accounts = data.accounts || [];
-        }
+        state.accounts = data.accounts;
       }
       state.lavalink = data.lavalink || null;
       renderAllAccounts();
@@ -1720,7 +1710,10 @@ async function submitAddAccount() {
 
 async function fetchAccounts() {
   try {
-    const res = await fetch('/api/accounts');
+    const token = localStorage.getItem('exc_user_token') || localStorage.getItem('token') || '';
+    const res = await fetch('/api/accounts', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
     const data = await res.json();
     if (data.success) {
       state.accounts = data.accounts;

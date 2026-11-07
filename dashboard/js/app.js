@@ -16,7 +16,7 @@ const state = {
   currentUser: null
 };
 
-// Global Fetch Interceptor for EXC Authentication & CloudeWave Proxy
+// Global Fetch Interceptor for EXC Authentication
 const _originalFetch = window.fetch;
 window.fetch = async function(url, options = {}) {
   options = options || {};
@@ -33,16 +33,10 @@ window.fetch = async function(url, options = {}) {
     }
   }
 
-  let targetUrl = url;
-  if (typeof targetUrl === 'string' && (targetUrl.startsWith('/api/') || targetUrl.startsWith('api/'))) {
-    if (window.location.host.includes('cloudewave.in')) {
-      const cleanPath = targetUrl.startsWith('/') ? targetUrl : '/' + targetUrl;
-      targetUrl = '/api/proxy.php?__path=' + encodeURIComponent(cleanPath);
-    }
-  }
-
-  const response = await _originalFetch(targetUrl, options);
-  if (response.status === 401 && !url.includes('/api/auth/login')) {
+  const response = await _originalFetch(url, options);
+  if (response.status === 401 && !url.includes('/api/auth/login') && !url.includes('/api/admin/login')) {
+    localStorage.removeItem('exc_user_token');
+    sessionStorage.removeItem('exc_user_token');
     showLoginOverlay();
   }
   return response;
@@ -50,6 +44,13 @@ window.fetch = async function(url, options = {}) {
 
 // Authentication & HWID UI Handlers
 function showLoginOverlay() {
+  localStorage.removeItem('exc_user_token');
+  sessionStorage.removeItem('exc_user_token');
+  if (!window._redirectingToLogin && !window.location.pathname.includes('login.html')) {
+    window._redirectingToLogin = true;
+    window.location.href = '/login.html';
+    return;
+  }
   const overlay = document.getElementById('exc-login-overlay');
   if (overlay) overlay.style.display = 'flex';
 }
@@ -59,15 +60,54 @@ function hideLoginOverlay() {
   if (overlay) overlay.style.display = 'none';
 }
 
-function toggleLoginPasswordView() {
-  const pwdInput = document.getElementById('login-password');
-  const eye = document.getElementById('login-eye-icon');
-  if (pwdInput.type === 'password') {
-    pwdInput.type = 'text';
-    eye.className = 'fa-solid fa-eye-slash';
-  } else {
-    pwdInput.type = 'password';
-    eye.className = 'fa-solid fa-eye';
+async function handleKeyAuthLogin(e) {
+  e.preventDefault();
+  const keyInput = document.getElementById('input-license-key');
+  const licenseKey = keyInput ? keyInput.value.trim().toUpperCase() : '';
+  const errBox = document.getElementById('login-error-msg');
+  const submitBtn = document.getElementById('btn-login-submit');
+
+  if (errBox) errBox.style.display = 'none';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Validating Key...';
+  }
+
+  try {
+    let hwid;
+try { hwid = typeof window.getDeviceHwid === 'function' ? await window.getDeviceHwid() : null; } catch(e){}
+if (!hwid || hwid.length < 20) hwid = localStorage.getItem('exc_hwid_fallback') || ('HWID-' + Math.random().toString(36).substring(2).padEnd(32, '0').toUpperCase());
+    const deviceInfo = window.getDeviceInfo();
+
+    const res = await _originalFetch('/api/auth/login/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: licenseKey, hwid, deviceInfo })
+    });
+
+    const data = await res.json();
+    if (data.success && data.token) {
+      localStorage.setItem('exc_user_token', data.token);
+      window.location.href = '/dashboard';
+    } else {
+      if (errBox) {
+        errBox.textContent = data.error || 'Invalid or expired KeyAuth license key.';
+        errBox.style.display = 'block';
+      }
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i> Activate Key & Access Dashboard';
+      }
+    }
+  } catch (err) {
+    if (errBox) {
+      errBox.textContent = 'Connection error: ' + err.message;
+      errBox.style.display = 'block';
+    }
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i> Activate Key & Access Dashboard';
+    }
   }
 }
 
@@ -177,19 +217,19 @@ let ws = null;
 
 function initWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  let wsUrl = `${protocol}//${window.location.host}`;
-  if (window.location.host.includes('cloudewave.in')) {
-    wsUrl = 'wss://exc-selfbot.onrender.com';
-  }
-
-  ws = new WebSocket(wsUrl);
+  ws = new WebSocket(`${protocol}//${window.location.host}`);
   window.ws = ws;
   window.dashboardWs = ws;
 
   ws.onopen = () => {
     console.log('[WS] Connected to dashboard server');
     if (state.token) {
-      ws.send(JSON.stringify({ type: 'auth', token: state.token }));
+      ws.send(JSON.stringify({
+        type: 'auth',
+        token: state.token,
+        userId: state.currentUser?.userId || state.currentUser?.id,
+        userKey: state.currentUser?.key || state.currentUser?.username
+      }));
     }
   };
 
@@ -211,8 +251,21 @@ function initWebSocket() {
 // Handle server broadcast events
 function handleServerEvent(type, data) {
   switch (type) {
+    case 'logout':
+      console.warn('[AUTH] Logged out by server:', data);
+      localStorage.removeItem('exc_user_token');
+      sessionStorage.removeItem('exc_user_token');
+      if (ws) {
+        try { ws.close(); } catch (_) {}
+      }
+      alert(data?.reason || 'Your license key was deleted. You have been logged out.');
+      window.location.href = '/login.html';
+      break;
+
     case 'init':
-      state.accounts = data.accounts || [];
+      if (Array.isArray(data.accounts)) {
+        state.accounts = data.accounts;
+      }
       state.lavalink = data.lavalink || null;
       renderAllAccounts();
       renderVoiceManagerCards();
@@ -223,17 +276,20 @@ function handleServerEvent(type, data) {
       }
       break;
 
-    case 'botStatus':
-      const acc = state.accounts.find(a => a.id === data.accountId);
-      if (acc) {
-        acc.status = data.status;
-        if (data.user) acc.user = data.user;
-        if (data.ping !== undefined) acc.ping = data.ping;
-        updateAccountCard(acc);
-        renderStats();
-        populateMusicBotSelect();
+    case 'botStatus': {
+      let acc = state.accounts.find(a => a.id === data.accountId);
+      if (!acc) {
+        fetchAccounts();
+        break;
       }
+      acc.status = data.status;
+      if (data.user) acc.user = data.user;
+      if (data.ping !== undefined) acc.ping = data.ping;
+      updateAccountCard(acc);
+      renderStats();
+      populateMusicBotSelect();
       break;
+    }
 
     case 'botVoice':
       const accV = state.accounts.find(a => a.id === data.accountId);
@@ -318,7 +374,7 @@ function handleServerEvent(type, data) {
         state.botLimit = data.botLimit;
         state.currentUser.botLimit = data.botLimit;
         renderStats();
-        showToast(`?? Your bot account limit has been updated to ${data.botLimit} bots!`, 'info');
+        showToast(`🤖 Your bot account limit has been updated to ${data.botLimit} bots!`, 'info');
       }
       break;
   }
@@ -410,7 +466,7 @@ function renderStats() {
   const elLimit = document.getElementById('stat-limit-accounts');
   if (elLimit) elLimit.textContent = limit;
   const elOnline = document.getElementById('stat-online-accounts');
-  if (elOnline) elOnline.textContent = `${online} Online � ${limit} Bots Limit`;
+  if (elOnline) elOnline.textContent = `${online} Online • ${limit} Bots Limit`;
   const elBadgeCount = document.getElementById('badge-accounts-count');
   if (elBadgeCount) elBadgeCount.textContent = total;
 
@@ -565,14 +621,19 @@ function createMiniAccountItem(acc) {
 }
 
 function updateAccountCard(acc) {
-  const existing = document.getElementById(`acc-card-${acc.id}`);
-  if (existing) {
-    const parent = existing.parentNode;
-    const newCard = createAccountCard(acc);
-    parent.replaceChild(newCard, existing);
-  } else {
-    renderAllAccounts();
-  }
+  renderAllAccounts();
+  renderStats();
+  if (typeof renderVoiceManagerCards === 'function') renderVoiceManagerCards();
+}
+
+// Keep dashboard accounts & online statuses 100% synchronized in real time
+if (!window._accountsAutoSyncInterval) {
+  window._accountsAutoSyncInterval = setInterval(() => {
+    const token = localStorage.getItem('exc_user_token') || localStorage.getItem('token');
+    if (token) {
+      fetchAccounts();
+    }
+  }, 4000);
 }
 
 // --- RENDER 24/7 VOICE MANAGER CARDS ---
@@ -717,7 +778,7 @@ function handleVoiceGuildChange(accountId) {
   guild.voiceChannels.forEach(ch => {
     const opt = document.createElement('option');
     opt.value = ch.id;
-    opt.textContent = `?? ${ch.name}`;
+    opt.textContent = `🔊 ${ch.name}`;
     if (ch.id === savedChannelId) opt.selected = true;
     channelSelect.appendChild(opt);
   });
@@ -834,7 +895,7 @@ function populateMusicBotSelect() {
   if (onlineBots.length > 0) {
     const allOpt = document.createElement('option');
     allOpt.value = 'ALL_BOTS';
-    allOpt.textContent = `? ALL BOTS (${onlineBots.length} Bots Synced Play)`;
+    allOpt.textContent = `⚡ ALL BOTS (${onlineBots.length} Bots Synced Play)`;
     if (state.selectedMusicBotId === 'ALL_BOTS' || !state.selectedMusicBotId) allOpt.selected = true;
     botSelect.appendChild(allOpt);
   }
@@ -931,7 +992,7 @@ function handleMusicGuildChange() {
     guild.voiceChannels.forEach(ch => {
       const opt = document.createElement('option');
       opt.value = ch.id;
-      opt.textContent = `?? ${ch.name}`;
+      opt.textContent = `🔊 ${ch.name}`;
       if (ch.id === activeChanId) opt.selected = true;
       voiceSelect.appendChild(opt);
     });
@@ -949,7 +1010,7 @@ async function connectAllBotsToVoice() {
   }
 
   try {
-    showToast('?? Connecting ALL your bots to Voice Channel...', 'info');
+    showToast('🚀 Connecting ALL your bots to Voice Channel...', 'info');
     const token = localStorage.getItem('exc_user_token') || localStorage.getItem('token') || '';
     const res = await fetch('/api/accounts/voice/join-all', {
       method: 'POST',
@@ -967,7 +1028,7 @@ async function connectAllBotsToVoice() {
     });
     const data = await res.json();
     if (data.success) {
-      showToast(`?? Connected ${data.joinedCount || 'all'} bots to VC 24/7!`, 'success');
+      showToast(`🎉 Connected ${data.joinedCount || 'all'} bots to VC 24/7!`, 'success');
       loadActivePlayer();
     } else {
       showToast(data.error || 'Failed to connect all bots', 'error');
@@ -1018,6 +1079,9 @@ async function loadActivePlayer() {
     const res = await fetch(url);
     const data = await res.json();
     if (data.success && data.player) {
+      if (typeof data.player.position === 'number') {
+        state.currentTrackPosition = data.player.position;
+      }
       updateNowPlayingUI(data.player);
       renderQueue(data.player);
     } else {
@@ -1026,6 +1090,15 @@ async function loadActivePlayer() {
   } catch (e) {
     console.error('Failed to load active player:', e);
   }
+}
+
+// Continuously synchronize seekbar line and queue with actual bot audio state
+if (!window._playerSyncInterval) {
+  window._playerSyncInterval = setInterval(() => {
+    if (state.selectedGuildId && state.activePlayer && state.activePlayer.playing) {
+      loadActivePlayer();
+    }
+  }, 2500);
 }
 
 // Search & Play Music
@@ -1050,7 +1123,9 @@ async function executeMusicSearch() {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const data = await res.json();
-    if (!data.success) { return showToast(data.error || 'Failed to search tracks', 'error'); }
+    if (!data.success) {
+      return showToast(data.error || 'Failed to search tracks', 'error');
+    }
     if (!data.result || !data.result.tracks || data.result.tracks.length === 0) {
       return showToast('No tracks found for that search', 'warn');
     }
@@ -1086,11 +1161,14 @@ function renderSearchResults(tracks) {
       <img class="search-thumb" src="${t.info.artworkUrl || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'}" alt="Cover">
       <div class="search-info">
         <div class="search-title">${escapeHTML(t.info.title)}</div>
-        <div class="search-author">${escapeHTML(t.info.author)} � ${formatDuration(t.info.length)}</div>
+        <div class="search-author">${escapeHTML(t.info.author)} • ${formatDuration(t.info.length)}</div>
       </div>
       <div style="display:flex;gap:6px;">
-        <button class="btn btn-sm btn-primary" onclick="playSearchTrack('${encodeURIComponent(JSON.stringify(t))}')">
+        <button class="btn btn-sm btn-primary" onclick="playSearchTrack('${encodeURIComponent(JSON.stringify(t))}', true)" title="Play immediately on bot">
           <i class="fa-solid fa-play"></i> Play
+        </button>
+        <button class="btn btn-sm btn-secondary" onclick="queueSearchTrack('${encodeURIComponent(JSON.stringify(t))}')" title="Add to Up Next queue">
+          <i class="fa-solid fa-list-ul"></i> +Queue
         </button>
       </div>
     `;
@@ -1102,38 +1180,49 @@ function closeSearchResults() {
   document.getElementById('search-results-box').style.display = 'none';
 }
 
-async function playSearchTrack(encodedTrackStr) {
+async function playSearchTrack(encodedTrackStr, forcePlay = true) {
   const track = JSON.parse(decodeURIComponent(encodedTrackStr));
   closeSearchResults();
   document.getElementById('music-search-input').value = '';
-  await playTrackDirect(track);
+  await playTrackDirect(track, forcePlay);
 }
 
-async function playTrackDirect(track) {
+async function queueSearchTrack(encodedTrackStr) {
+  const track = JSON.parse(decodeURIComponent(encodedTrackStr));
+  closeSearchResults();
+  document.getElementById('music-search-input').value = '';
+  await playTrackDirect(track, false);
+}
+
+async function playTrackDirect(track, forcePlay = false) {
   if (!state.selectedGuildId) {
     return showToast('Please select a target Server & Voice Channel first!', 'warn');
   }
 
   try {
+    const selectedBot = state.selectedMusicBotId || document.getElementById('music-bot-select')?.value || 'ALL_BOTS';
+    const isSingle = false; // Always play on all bots under the user's key in sync
     const channelId = document.getElementById('music-voice-select')?.value;
     const res = await fetch(`/api/music/player/${state.selectedGuildId}/play`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         track,
-        accountId: 'ALL_BOTS',
+        forcePlay,
+        accountId: selectedBot,
+        singleBot: false,
         allBots: true,
         channelId
       })
     });
     const data = await res.json();
     if (data.success) {
-      if (data.massPlay) {
-        showToast(`?? Playing "${track.info.title}" on ALL ${data.count} bots!`, 'success');
+      if (data.result?.status === 'queued') {
+        showToast(`➕ Added to queue: "${track.info.title}"`, 'info');
       } else {
-        showToast(data.result?.status === 'playing' ? `Now playing: ${track.info.title}` : `Added to queue: ${track.info.title}`, 'success');
+        showToast(`▶ Playing "${track.info.title}" on bot!`, 'success');
       }
-      loadActivePlayer();
+      setTimeout(loadActivePlayer, 500);
     } else {
       showToast(data.error || 'Failed to play track', 'error');
     }
@@ -1148,13 +1237,16 @@ async function addPlaylistToQueue(tracks) {
   }
 
   try {
+    const selectedBot = state.selectedMusicBotId || document.getElementById('music-bot-select')?.value || 'ALL_BOTS';
+    const isSingle = false; // Always play on all bots in sync
     const channelId = document.getElementById('music-voice-select')?.value;
     const res = await fetch(`/api/music/player/${state.selectedGuildId}/playlist`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         tracks,
-        accountId: 'ALL_BOTS',
+        accountId: selectedBot,
+        singleBot: false,
         allBots: true,
         channelId
       })
@@ -1162,7 +1254,7 @@ async function addPlaylistToQueue(tracks) {
     const data = await res.json();
     if (data.success) {
       if (data.massPlay) {
-        showToast(`?? Playing ${data.count} tracks on ALL ${data.botCount || ''} bots!`, 'success');
+        showToast(`🔥 Playing ${data.count} tracks on ALL ${data.botCount || ''} bots!`, 'success');
       } else {
         showToast(`Added ${data.count} songs from playlist to queue!`, 'success');
       }
@@ -1189,16 +1281,17 @@ document.getElementById('btn-play-pause')?.addEventListener('click', async () =>
   } catch (e) {}
 });
 
-// Skip
+// Skip to next queued track
 document.getElementById('btn-skip')?.addEventListener('click', async () => {
   if (!state.selectedGuildId) return;
   try {
     await fetch(`/api/music/player/${state.selectedGuildId}/skip`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountId: state.selectedMusicBotId })
+      body: JSON.stringify({ accountId: state.selectedMusicBotId || 'ALL_BOTS' })
     });
     showToast('Skipped to next track', 'info');
+    setTimeout(loadActivePlayer, 400);
   } catch (e) {}
 });
 
@@ -1226,7 +1319,7 @@ document.getElementById('btn-sync-bots')?.addEventListener('click', async () => 
     });
     const data = await res.json();
     if (data.success) {
-      showToast(`? Synchronized ${data.syncedBots} bots to exact track & position!`, 'success');
+      showToast(`⚡ Synchronized ${data.syncedBots} bots to exact track & position!`, 'success');
       fetchPlayerState();
     } else {
       showToast(data.error || 'Failed to sync bots', 'warning');
@@ -1261,10 +1354,10 @@ document.getElementById('btn-loop-mode')?.addEventListener('click', async () => 
     }
     if (state.activePlayer) state.activePlayer.loop = nextMode;
     const txt = document.getElementById('loop-mode-text');
-    if (txt) txt.textContent = nextMode === 'track' ? 'TRACK ??' : (nextMode === 'queue' ? 'QUEUE ??' : 'LOOP: OFF');
+    if (txt) txt.textContent = nextMode === 'track' ? 'TRACK 🔂' : (nextMode === 'queue' ? 'QUEUE 🔁' : 'LOOP: OFF');
     const pillTxt = document.getElementById('filter-loop-label');
-    if (pillTxt) pillTxt.textContent = nextMode === 'track' ? 'Loop: Track ??' : (nextMode === 'queue' ? 'Loop: Queue ??' : 'Loop: OFF');
-    showToast(nextMode === 'track' ? '?? Loop: Single Song Repeats Forever' : (nextMode === 'queue' ? '?? Loop: Entire Queue Repeats' : 'Loop: OFF'), 'info');
+    if (pillTxt) pillTxt.textContent = nextMode === 'track' ? 'Loop: Track 🔂' : (nextMode === 'queue' ? 'Loop: Queue 🔁' : 'Loop: OFF');
+    showToast(nextMode === 'track' ? '🔂 Loop: Single Song Repeats Forever' : (nextMode === 'queue' ? '🔁 Loop: Entire Queue Repeats' : 'Loop: OFF'), 'info');
   } catch (e) {}
 });
 
@@ -1323,8 +1416,12 @@ function updatePlayerUI(player) {
   if (player.volume !== undefined) {
     const slider = document.getElementById('volume-slider');
     if (slider) slider.value = player.volume;
+    const volDisplay = document.getElementById('vol-display');
+    if (volDisplay) volDisplay.textContent = player.volume + '%';
   }
   if (player.filters) {
+    const bassBtn = document.getElementById('cmd-btn-bass');
+    if (bassBtn) bassBtn.classList.toggle('active', !!player.filters.bassboost);
     document.querySelectorAll('.filter-pill').forEach(btn => {
       const fName = btn.dataset.filter;
       if (fName && player.filters[fName] !== undefined) {
@@ -1386,7 +1483,9 @@ function updateNowPlayingUI(player) {
     authorEl.textContent = track.info.author;
     artEl.src = track.info.artworkUrl || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=400';
     state.currentTrackDuration = track.info.length || 0;
-    state.currentTrackPosition = player.position || 0;
+    if (typeof player.position === 'number') {
+      state.currentTrackPosition = player.position;
+    }
     document.getElementById('time-total').textContent = formatDuration(state.currentTrackDuration);
     dot.style.display = 'block';
     visualizer.style.display = player.paused ? 'none' : 'flex';
@@ -1395,11 +1494,11 @@ function updateNowPlayingUI(player) {
   }
 
   if (loopTxt && player.loop) {
-    loopTxt.textContent = player.loop === 'track' ? 'TRACK ??' : (player.loop === 'queue' ? 'QUEUE ??' : 'LOOP: OFF');
+    loopTxt.textContent = player.loop === 'track' ? 'TRACK 🔂' : (player.loop === 'queue' ? 'QUEUE 🔁' : 'LOOP: OFF');
   }
   const pillTxt = document.getElementById('filter-loop-label');
   if (pillTxt && player.loop) {
-    pillTxt.textContent = player.loop === 'track' ? 'Loop: Track ??' : (player.loop === 'queue' ? 'Loop: Queue ??' : 'Loop: OFF');
+    pillTxt.textContent = player.loop === 'track' ? 'Loop: Track 🔂' : (player.loop === 'queue' ? 'Loop: Queue 🔁' : 'Loop: OFF');
   }
 
   updatePlayPauseButton();
@@ -1444,11 +1543,13 @@ function startSeekTimer() {
 
   state.positionInterval = setInterval(() => {
     if (state.activePlayer && state.activePlayer.playing && !state.activePlayer.paused) {
-      state.currentTrackPosition += 1000;
-      if (state.currentTrackPosition > state.currentTrackDuration) {
-        state.currentTrackPosition = state.currentTrackDuration;
+      if (state.currentTrackPosition > 0 || (state.activePlayer.position && state.activePlayer.position > 0)) {
+        state.currentTrackPosition += 1000;
+        if (state.currentTrackPosition > state.currentTrackDuration) {
+          state.currentTrackPosition = state.currentTrackDuration;
+        }
+        updateSeekbarVisual();
       }
-      updateSeekbarVisual();
     }
   }, 1000);
 }
@@ -1609,10 +1710,17 @@ async function submitAddAccount() {
 
 async function fetchAccounts() {
   try {
-    const res = await fetch('/api/accounts');
+    const token = localStorage.getItem('exc_user_token') || localStorage.getItem('token') || '';
+    const res = await fetch('/api/accounts', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
     const data = await res.json();
     if (data.success) {
       state.accounts = data.accounts;
+      if (typeof data.botLimit === 'number') {
+        state.botLimit = data.botLimit;
+        if (state.currentUser) state.currentUser.botLimit = data.botLimit;
+      }
       renderAllAccounts();
       renderVoiceManagerCards();
       renderStats();
@@ -1933,7 +2041,7 @@ function onMassGuildChange() {
   guild.voiceChannels.forEach(ch => {
     const opt = document.createElement('option');
     opt.value = ch.id;
-    opt.textContent = `?? ${ch.name}`;
+    opt.textContent = `🔊 ${ch.name}`;
     channelSelect.appendChild(opt);
   });
 }
@@ -1983,7 +2091,7 @@ async function executeMassJoinVoice() {
       throw new Error(data.error || 'Failed to join bots');
     }
 
-    showToast(`?? Success! ${data.joined}/${data.total} bots joined "${data.channelName}" (24/7: ${keep247 ? 'ACTIVE' : 'OFF'})!`, 'success');
+    showToast(`🎉 Success! ${data.joined}/${data.total} bots joined "${data.channelName}" (24/7: ${keep247 ? 'ACTIVE' : 'OFF'})!`, 'success');
     loadAccounts();
     renderVoiceManagerCards();
   } catch (err) {
@@ -2017,7 +2125,7 @@ async function executeMassLeaveVoice() {
       throw new Error(data.error || 'Failed to leave voice');
     }
 
-    showToast(`? Disconnected all bots from voice.`, 'info');
+    showToast(`✅ Disconnected all bots from voice.`, 'info');
     loadAccounts();
     renderVoiceManagerCards();
   } catch (err) {
@@ -2033,7 +2141,7 @@ async function loadGuildsForLeave() {
   const selectEl = document.getElementById('leave-guild-select');
   if (!selectEl) return;
 
-  selectEl.innerHTML = '<option value="">? Loading joined servers...</option>';
+  selectEl.innerHTML = '<option value="">⌛ Loading joined servers...</option>';
 
   try {
     const token = localStorage.getItem('exc_user_token') || localStorage.getItem('token') || '';
@@ -2075,7 +2183,7 @@ async function loadGuildsForLeave() {
     const botSelectEl = document.getElementById('leave-bot-select');
     if (botSelectEl) {
       const onlineBots = state.accounts ? state.accounts.filter(a => a.status === 'online') : [];
-      botSelectEl.innerHTML = '<option value="ALL_BOTS">?? ALL BOTS (Mass Server Leave)</option>' +
+      botSelectEl.innerHTML = '<option value="ALL_BOTS">👑 ALL BOTS (Mass Server Leave)</option>' +
         onlineBots.map(b => `<option value="${b.id}">${escapeHTML(b.label || b.user?.username || b.id)}</option>`).join('');
     }
   } catch (err) {
@@ -2102,8 +2210,8 @@ async function submitPermanentServerLeave() {
   const useProxy = proxyCheckbox ? proxyCheckbox.checked : true;
 
   const confirmMsg = isMass
-    ? `?? PERMANENT SERVER LEAVE WARNING:\n\nAre you sure you want ALL BOTS to leave:\n"${selectedServerName}"?\n\nThis will permanently delete 24/7 Stay rules, disconnect bots from voice, and exit the server safely with proxy rotation.\n\nProceed?`
-    : `?? PERMANENT SERVER LEAVE WARNING:\n\nAre you sure you want this bot to permanently leave:\n"${selectedServerName}"?\n\n24/7 rules will be erased and the bot will exit the server.\n\nProceed?`;
+    ? `⚠️ PERMANENT SERVER LEAVE WARNING:\n\nAre you sure you want ALL BOTS to leave:\n"${selectedServerName}"?\n\nThis will permanently delete 24/7 Stay rules, disconnect bots from voice, and exit the server safely with proxy rotation.\n\nProceed?`
+    : `⚠️ PERMANENT SERVER LEAVE WARNING:\n\nAre you sure you want this bot to permanently leave:\n"${selectedServerName}"?\n\n24/7 rules will be erased and the bot will exit the server.\n\nProceed?`;
 
   if (!confirm(confirmMsg)) return;
 
@@ -2141,7 +2249,7 @@ async function submitPermanentServerLeave() {
     }
 
     const count = data.leftCount !== undefined ? data.leftCount : 1;
-    showToast(`? Permanently left "${data.guildName || selectedServerName}" across ${count} bot(s)!`, 'success');
+    showToast(`✅ Permanently left "${data.guildName || selectedServerName}" across ${count} bot(s)!`, 'success');
 
     await loadGuildsForLeave();
     loadAccounts();
@@ -2159,10 +2267,11 @@ window.loadGuildsForLeave = loadGuildsForLeave;
 window.submitPermanentServerLeave = submitPermanentServerLeave;
 
 // --- TOKEN MANAGER (MASS TOKEN MODAL MATCHING USER SCREENSHOT) ---
-function openTokenManagerModal() {
+async function openTokenManagerModal() {
   const modal = document.getElementById('modal-token-manager');
   if (!modal) return;
   modal.style.display = 'flex';
+  await fetchAccounts();
   const textarea = document.getElementById('token-manager-textarea');
   if (textarea) {
     textarea.focus();
@@ -2253,7 +2362,7 @@ async function loadSavedTokensIntoManager() {
       msg.textContent = `Error: ${err.message}`;
     }
   } finally {
-    if (btn) btn.innerHTML = '<span style="font-size: 1.1rem;">??</span> Load Saved';
+    if (btn) btn.innerHTML = '<span style="font-size: 1.1rem;">📁</span> Load Saved';
   }
 }
 
@@ -2286,6 +2395,16 @@ async function submitMassTokens() {
 
     const data = await res.json();
     if (!res.ok || !data.success) {
+      if (data.code === 'BOT_LIMIT_REACHED') {
+        if (typeof data.botLimit === 'number') {
+          state.botLimit = data.botLimit;
+          if (state.currentUser) state.currentUser.botLimit = data.botLimit;
+        }
+        const quotaText = document.getElementById('tm-quota-text');
+        if (quotaText && typeof data.currentCount === 'number' && typeof data.botLimit === 'number') {
+          quotaText.textContent = `${data.currentCount}/${data.botLimit}`;
+        }
+      }
       throw new Error(data.error || 'Failed to save tokens');
     }
 
@@ -2297,11 +2416,20 @@ async function submitMassTokens() {
       msg.innerHTML = `<b>Success!</b> Added <b>${data.addedCount}</b> token(s). ${data.skippedCount ? `(${data.skippedCount} skipped as duplicate/limit)` : ''}`;
     }
 
-    if (window.showToast) showToast(`? Added ${data.addedCount} selfbot token(s)! Auto-connecting now...`, 'success');
+    if (window.showToast) showToast(`✅ Added ${data.addedCount} selfbot token(s)! All tokens connected at 1 time!`, 'success');
 
-    if (typeof loadAccounts === 'function') loadAccounts();
+    await fetchAccounts();
+    if (typeof renderAllAccounts === 'function') renderAllAccounts();
+    if (typeof renderVoiceManagerCards === 'function') renderVoiceManagerCards();
+    if (typeof renderStats === 'function') renderStats();
+    if (typeof populateMusicBotSelect === 'function') populateMusicBotSelect();
 
     setTimeout(() => {
+      fetchAccounts();
+    }, 1000);
+
+    setTimeout(() => {
+      fetchAccounts();
       closeTokenManagerModal();
     }, 1800);
   } catch (err) {
@@ -2316,7 +2444,7 @@ async function submitMassTokens() {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = '<span style="font-size: 1.1rem;">??</span> Save Tokens';
+      btn.innerHTML = '<span style="font-size: 1.1rem;">💾</span> Save Tokens';
     }
   }
 }
@@ -2338,9 +2466,9 @@ setInterval(() => {
 }, 45 * 1000);
 
 
-// ------------------------------------------------------------------
+// ══════════════════════════════════════════════════════════════════
 // EXACT COMMAND RUNNER (from dashboard & dashboard sb html)
-// ------------------------------------------------------------------
+// ══════════════════════════════════════════════════════════════════
 async function sendCmd(cmd) {
   const token = localStorage.getItem('exc_user_token') || localStorage.getItem('token') || '';
   try {
@@ -2366,6 +2494,16 @@ async function sendCmd(cmd) {
       if (volDisplay) volDisplay.textContent = data.currentVolume + '%';
       const volSlider = document.getElementById('volume-slider');
       if (volSlider) volSlider.value = data.currentVolume;
+    }
+    if (data.isBassboosted !== undefined) {
+      const bassBtn = document.getElementById('cmd-btn-bass');
+      if (bassBtn) bassBtn.classList.toggle('active', !!data.isBassboosted);
+    }
+    if (data.blastMode !== undefined) {
+      document.querySelector('.cmd-btn[onclick*="blast"]')?.classList.toggle('active', !!data.blastMode);
+    }
+    if (data.pungiMode !== undefined) {
+      document.querySelector('.cmd-btn[onclick*="pungi"]')?.classList.toggle('active', !!data.pungiMode);
     }
     if (window.showToast) {
       showToast(data.response || `Executed: ${cmd}`, data.error ? 'error' : 'success');

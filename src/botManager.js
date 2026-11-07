@@ -554,10 +554,7 @@ class BotManager extends EventEmitter {
 
   // --- Start All Accounts ---
   async startAll(userId = null) {
-    let accounts = database.getAccounts(userId);
-    if (!accounts || accounts.length === 0) {
-      accounts = database.getAccounts(null);
-    }
+    let accounts = userId ? database.getAccounts(userId) : database.getAccounts(null);
     logger.info("BOT", `Starting ${accounts.length} account(s)${userId ? ` for user ${userId}` : ''}...`);
     // Start all accounts simultaneously at 1 time itself (instant parallel connection)
     await Promise.allSettled(accounts.map(acc => {
@@ -572,10 +569,7 @@ class BotManager extends EventEmitter {
 
   // --- Stop All Accounts ---
   async stopAll(userId = null) {
-    let accounts = database.getAccounts(userId);
-    if (!accounts || accounts.length === 0) {
-      accounts = database.getAccounts(null);
-    }
+    let accounts = userId ? database.getAccounts(userId) : database.getAccounts(null);
     logger.info("BOT", `Stopping ${accounts.length} account(s)...`);
     for (const acc of accounts) {
       if (this.bots.has(acc.id)) {
@@ -796,10 +790,7 @@ class BotManager extends EventEmitter {
   async joinAllToVoice(userId = null, channelId, { guildId = null, keep247 = true, selfMute = false, selfDeaf = false } = {}) {
     if (!channelId) throw new Error("Voice Channel ID is required");
 
-    let accounts = database.getAccounts(userId);
-    if (!accounts || accounts.length === 0) {
-      accounts = database.getAccounts(null);
-    }
+    let accounts = userId ? database.getAccounts(userId) : database.getAccounts(null);
     if (!accounts || accounts.length === 0) throw new Error("No Discord accounts found in your dashboard.");
 
     let detectedGuildId = guildId;
@@ -899,10 +890,7 @@ class BotManager extends EventEmitter {
 
   // --- Mass Voice: Disconnect ALL Accounts from Voice ---
   async leaveAllVoice(userId = null, disable247 = true) {
-    let accounts = database.getAccounts(userId);
-    if (!accounts || accounts.length === 0) {
-      accounts = database.getAccounts(null);
-    }
+    let accounts = userId ? database.getAccounts(userId) : database.getAccounts(null);
     let leftCount = 0;
 
     for (const acc of accounts) {
@@ -1105,10 +1093,7 @@ class BotManager extends EventEmitter {
 
   // --- Permanent Guild Leave for ALL BOTS (Mass Leave with Proxy Rotation & Jitter Stagger) ---
   async leaveGuildAllBots(userId, guildId, options = {}) {
-    let accounts = database.getAccounts(userId);
-    if (!accounts || accounts.length === 0) {
-      accounts = database.getAccounts(null);
-    }
+    let accounts = userId ? database.getAccounts(userId) : database.getAccounts(null);
     const results = [];
     let leftCount = 0;
     let targetGuildName = guildId;
@@ -1204,10 +1189,7 @@ class BotManager extends EventEmitter {
   }
 
   getAllBotsStatus(userId = null) {
-    let accounts = database.getAccounts(userId);
-    if (!accounts || accounts.length === 0) {
-      accounts = database.getAccounts(null);
-    }
+    let accounts = userId ? database.getAccounts(userId) : database.getAccounts(null);
     return accounts.map(acc => {
       const live = this.bots.get(acc.id);
       return {
