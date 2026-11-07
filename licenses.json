@@ -1,0 +1,133 @@
+[
+  {
+    "key": "SPY-PREM-TEST-0001",
+    "createdAt": "2026-11-06T00:00:00.000Z",
+    "used": false,
+    "usedBy": "1527609131043917874",
+    "userTag": "perks.gg.red",
+    "tier": "premium",
+    "maxAccounts": 30
+  },
+  {
+    "key": "SPY-FREE-TEST-0001",
+    "createdAt": "2026-11-06T00:00:00.000Z",
+    "used": false,
+    "usedBy": null,
+    "tier": "standard",
+    "maxAccounts": 4
+  },
+  {
+    "key": "SPY-WEB-8821",
+    "createdAt": "2026-11-05T15:00:59.579Z",
+    "used": false,
+    "usedBy": null,
+    "tier": "standard",
+    "maxAccounts": 4
+  },
+  {
+    "key": "SPY-VIP-ACCESS",
+    "createdAt": "2026-11-05T15:00:59.579Z",
+    "used": false,
+    "usedBy": "1527609131043917874",
+    "tier": "premium",
+    "maxAccounts": 30
+  },
+  {
+    "key": "SPY-FREE-2026",
+    "createdAt": "2026-11-05T15:00:59.579Z",
+    "used": false,
+    "usedBy": null,
+    "tier": "standard",
+    "maxAccounts": 4
+  },
+  {
+    "key": "CRUZE-FREE-2026",
+    "createdAt": "2026-11-05T06:20:00.000Z",
+    "used": false,
+    "usedBy": null,
+    "tier": "standard",
+    "maxAccounts": 4
+  },
+  {
+    "key": "CRUZE-BLAST-VIP",
+    "createdAt": "2026-11-05T06:20:00.000Z",
+    "used": false,
+    "usedBy": "1527609131043917874",
+    "tier": "premium",
+    "maxAccounts": 30
+  },
+  {
+    "key": "CRUZE-KEY-8821",
+    "createdAt": "2026-11-05T06:20:00.000Z",
+    "used": false,
+    "usedBy": null,
+    "tier": "standard",
+    "maxAccounts": 4
+  },
+  {
+    "key": "CRUZE-TEST-KEY",
+    "createdAt": "2026-11-05T06:20:00.000Z",
+    "used": false,
+    "usedBy": null,
+    "tier": "standard",
+    "maxAccounts": 4
+  },
+  {
+    "key": "CRUZE-CE2F-F031-ED86",
+    "createdAt": "2026-11-05T14:35:13.343Z",
+    "used": false,
+    "usedBy": "1527609131043917874",
+    "userTag": "perks.gg.red",
+    "tier": "standard",
+    "maxAccounts": 4
+  },
+  {
+    "key": "CRUZE-2218-D900-03D3",
+    "createdAt": "2026-11-05T14:35:23.582Z",
+    "used": true,
+    "usedBy": "1527609131043917874",
+    "userTag": "perks.gg.red",
+    "usedAt": "2026-11-05T14:39:43.413Z",
+    "tier": "standard",
+    "maxAccounts": 4
+  },
+  {
+    "key": "SPY-9509-6F1E-4628",
+    "createdAt": "2026-11-05T15:13:44.756Z",
+    "used": false,
+    "usedBy": "1527609131043917874",
+    "userTag": "perks.gg.red",
+    "tier": "premium",
+    "maxAccounts": 30
+  },
+  {
+    "key": "SPY-AEAF-361B-34AA",
+    "createdAt": "2026-11-05T15:17:18.102Z",
+    "used": true,
+    "usedBy": "1527609131043917874",
+    "userTag": "perks.gg.red",
+    "usedAt": "2026-11-05T15:17:26.476Z",
+    "tier": "premium",
+    "maxAccounts": 30
+  },
+  {
+    "key": "SPY-EAE0-31AE-20DF",
+    "createdAt": "2026-11-07T10:20:41.124Z",
+    "used": true,
+    "usedBy": "1527609131043917874",
+    "userTag": "perks.gg.red",
+    "tier": "standard",
+    "maxAccounts": 4,
+    "usedAt": "2026-11-07T10:20:49.162Z"
+  },
+  {
+    "key": "SPY-PREM-2A68-5041",
+    "createdAt": "2026-11-07T10:22:59.335Z",
+    "used": true,
+    "usedBy": "1527609131043917874",
+    "userTag": "perks.gg.red",
+    "tier": "premium",
+    "maxAccounts": 30,
+    "usedAt": "2026-11-07T10:23:16.918Z"
+  }
+]
