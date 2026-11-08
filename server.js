@@ -47,7 +47,9 @@ const SOUNDBOARD_META_FILE = path.join(__dirname, 'soundboard_tracks.json');
 // Global audio & voice states
 let activeBotConnection = null;
 let activeBotPlayer = null;
+let activeBotResource = null;
 let currentLoopTrack = null;
+let currentPlayingIsAmp = false;
 const activeUserGateways = new Map(); // token -> WebSocket
 const activeSelfbotClients = new Map(); // token -> SelfbotClient
 // Multi-Account Operative Voice Pipelines: token -> { client, connection, player, guildId, channelId }
@@ -761,16 +763,17 @@ io.on('connection', socket => {
   // --- Dedicated Multi-Account Audio Player & Voice Pipeline ---
   function playTrackForPlayer(player, filePath, volumeMultiplier = 1.0) {
     try {
-      if (!fs.existsSync(filePath)) return false;
+      if (!fs.existsSync(filePath)) return null;
       const resource = createAudioResource(filePath, { inlineVolume: true });
+      const cleanVol = Math.max(0.1, Math.min(volumeMultiplier, 500000.0));
       if (resource.volume) {
-        resource.volume.setVolume(Math.max(0.1, Math.min(volumeMultiplier, 10.0)));
+        resource.volume.setVolume(cleanVol);
       }
       player.play(resource);
-      return true;
+      return resource;
     } catch (e) {
       console.warn('[SPY WEB] Play stream error:', e.message);
-      return false;
+      return null;
     }
   }
 
@@ -778,7 +781,11 @@ io.on('connection', socket => {
     try {
       if (!fs.existsSync(filePath)) return false;
       if (op && op.player) {
-        return playTrackForPlayer(op.player, filePath, volumeMultiplier);
+        const res = playTrackForPlayer(op.player, filePath, volumeMultiplier);
+        if (res) {
+          op.currentResource = res;
+          return true;
+        }
       }
       return false;
     } catch (err) {
@@ -963,15 +970,18 @@ io.on('connection', socket => {
     // 1. Play on all connected operative accounts
     for (const [token, op] of activeOperatives.entries()) {
       if (op && op.player) {
-        const ok = playTrackForPlayer(op.player, filePath, volumeMultiplier);
+        const ok = playTrackForOperative(op, filePath, volumeMultiplier);
         if (ok) playedCount++;
       }
     }
 
     // 2. Play on SPY WEB Bot if connected
     if (activeBotConnection && activeBotPlayer) {
-      const botOk = playTrackForPlayer(activeBotPlayer, filePath, volumeMultiplier);
-      if (botOk) playedCount++;
+      const res = playTrackForPlayer(activeBotPlayer, filePath, volumeMultiplier);
+      if (res) {
+        activeBotResource = res;
+        playedCount++;
+      }
     }
 
     console.log(`[SPY WEB] 🎵 Playing sound resource: "${path.basename(filePath)}" (${volumeMultiplier.toFixed(2)}x) across ${playedCount} audio stream(s) (${activeOperatives.size} operatives, ${activeBotConnection ? 1 : 0} bot)!`);
@@ -1101,9 +1111,43 @@ io.on('connection', socket => {
   socket.on('leave_voice', handleLeaveVoice);
   socket.on('bot_leave_voice', handleLeaveVoice);
 
-  // 9. Audio Settings & DSP
+  // 9. Audio Settings & DSP — Real-time live volume & amplification scaling
   socket.on('update_amp_settings', settings => {
     currentAmpSettings = { ...currentAmpSettings, ...settings };
+
+    // Calculate real-time updated gain & DSP multiplier
+    const baseDb = currentAmpSettings.gainDb || 0;
+    let volumeMult = Math.pow(10, baseDb / 20);
+    if (currentPlayingIsAmp) volumeMult *= 2.5;
+
+    // Bass Sub-Punch factor (up to 3x additional sub boost at 100%)
+    const bassFactor = 1 + ((currentAmpSettings.bassPct || 0) / 100) * 2;
+    // Air & Treble clarity factor (up to 1.5x clarity boost)
+    const airFactor = 1 + ((currentAmpSettings.airPct || 0) / 100) * 0.5;
+
+    const totalMultiplier = Math.max(0.1, Math.min(volumeMult * bassFactor * airFactor, 500000.0));
+
+    console.log(`[SPY WEB] 🎚️ Master Gain Live Update: ${baseDb > 0 ? '+' : ''}${baseDb} dB (Multiplier: ${totalMultiplier.toFixed(1)}x, Bass: ${currentAmpSettings.bassPct || 0}%, Air: ${currentAmpSettings.airPct || 0}%)`);
+
+    // If a loop track is active, update its stored volume for subsequent repeats
+    if (currentLoopTrack) {
+      currentLoopTrack.volume = totalMultiplier;
+    }
+
+    // Apply immediately to ALL active playing streams in real time!
+    for (const [token, op] of activeOperatives.entries()) {
+      if (op && op.currentResource && op.currentResource.volume) {
+        try {
+          op.currentResource.volume.setVolume(totalMultiplier);
+        } catch (e) {}
+      }
+    }
+
+    if (activeBotResource && activeBotResource.volume) {
+      try {
+        activeBotResource.volume.setVolume(totalMultiplier);
+      } catch (e) {}
+    }
   });
 
   socket.on('audio_chunk', pcmData => {
@@ -1150,11 +1194,17 @@ io.on('connection', socket => {
     const soundId = data?.id;
     const isLoop = !!data?.loop;
     const isAmp = !!data?.amplified;
+    currentPlayingIsAmp = isAmp;
     console.log(`[SPY WEB] 🔊 Playing sound/music: "${soundId}" (loop: ${isLoop}, amp: ${isAmp})`);
 
     const baseDb = currentAmpSettings.gainDb || 0;
     let volumeMult = Math.pow(10, baseDb / 20);
     if (isAmp) volumeMult *= 2.5;
+
+    // Apply Bass Sub-Punch (up to 3x) and Treble Air (up to 1.5x)
+    const bassFactor = 1 + ((currentAmpSettings.bassPct || 0) / 100) * 2;
+    const airFactor = 1 + ((currentAmpSettings.airPct || 0) / 100) * 0.5;
+    const totalMultiplier = Math.max(0.1, Math.min(volumeMult * bassFactor * airFactor, 500000.0));
 
     const track = soundboardTracks.find(t => t.id === soundId || t.name === soundId);
     let targetPath = null;
@@ -1170,11 +1220,11 @@ io.on('connection', socket => {
 
     if (targetPath) {
       if (isLoop) {
-        currentLoopTrack = { filePath: targetPath, volume: volumeMult };
+        currentLoopTrack = { filePath: targetPath, volume: totalMultiplier };
       } else {
         currentLoopTrack = null;
       }
-      const ok = playAudioTrack(targetPath, volumeMult);
+      const ok = playAudioTrack(targetPath, totalMultiplier);
       if (!ok) {
         socket.emit('play_status', {
           success: false,
@@ -1183,7 +1233,7 @@ io.on('connection', socket => {
       } else {
         socket.emit('play_status', {
           success: true,
-          message: `Now playing: "${track?.name || path.basename(targetPath)}"`
+          message: `Now playing: "${track?.name || path.basename(targetPath)}" at ${baseDb > 0 ? '+' + baseDb + ' dB' : baseDb + ' dB'} (${totalMultiplier.toFixed(0)}x amplification)`
         });
       }
     } else {
@@ -1198,10 +1248,13 @@ io.on('connection', socket => {
   socket.on('soundboard_stop', () => {
     console.log('[SPY WEB] Soundboard & music stopped across all accounts.');
     currentLoopTrack = null;
+    currentPlayingIsAmp = false;
+    activeBotResource = null;
     if (activeBotPlayer) {
       try { activeBotPlayer.stop(); } catch (e) {}
     }
     for (const [token, op] of activeOperatives.entries()) {
+      op.currentResource = null;
       try {
         op.player?.stop();
       } catch (e) {}

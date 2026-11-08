@@ -1354,7 +1354,14 @@
                     <span class="amp-val" id="disp-gain">+0 dB</span>
                   </div>
                   <div class="amp-slider-wrap">
-                    <input type="range" min="-30" max="100" value="0" class="amp-slider" id="slider-gain" oninput="updateGainDsp(this.value)" />
+                    <input type="range" min="-30" max="150" value="0" class="amp-slider" id="slider-gain" oninput="updateGainDsp(this.value)" />
+                  </div>
+                  <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+                    <button class="sb-toggle-btn" onclick="document.getElementById('slider-gain').value = 0; updateGainDsp(0);">0 dB</button>
+                    <button class="sb-toggle-btn" onclick="document.getElementById('slider-gain').value = 30; updateGainDsp(30);">+30 dB</button>
+                    <button class="sb-toggle-btn" onclick="document.getElementById('slider-gain').value = 60; updateGainDsp(60);">+60 dB (Blast)</button>
+                    <button class="sb-toggle-btn active" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.5);" onclick="document.getElementById('slider-gain').value = 100; updateGainDsp(100);">🔥 +100 dB (Max Earrape)</button>
+                    <button class="sb-toggle-btn" style="color: #f59e0b; border-color: rgba(245, 158, 11, 0.5);" onclick="document.getElementById('slider-gain').value = 150; updateGainDsp(150);">⚡ +150 dB (Nuclear)</button>
                   </div>
                 </div>
 
