@@ -2,6 +2,7 @@ const { Client, GatewayIntentBits, EmbedBuilder, ActivityType } = require('disco
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const db = require('./db');
 
 const CONFIG_PATH = path.join(__dirname, 'botConfig.json');
 const LICENSES_PATH = path.join(__dirname, 'licenses.json');
@@ -10,6 +11,7 @@ const OWNER_ID = '1527609131043917874';
 let config = {
   botToken: "",
   discordServer: "https://discord.gg/5Tzs2ny4u5",
+  dashboardUrl: "https://wealth-extension-ontario-unexpected.trycloudflare.com",
   noPrefix: true
 };
 
@@ -20,6 +22,7 @@ try {
 } catch (e) {}
 
 const token = process.env.DISCORD_BOT_TOKEN || config.botToken;
+const DASHBOARD_URL = config.dashboardUrl || process.env.DASHBOARD_URL || 'https://wealth-extension-ontario-unexpected.trycloudflare.com';
 
 function generateLicenseKey(tier = 'standard') {
   const segment1 = crypto.randomBytes(2).toString('hex').toUpperCase();
@@ -31,16 +34,9 @@ function generateLicenseKey(tier = 'standard') {
   return `SPY-${segment1}-${segment2}-${segment3}`;
 }
 
-function saveNewKey(key, userId = 'manual', tag = '', tier = 'standard', maxAccounts = 4) {
-  let list = [];
-  try {
-    if (fs.existsSync(LICENSES_PATH)) {
-      list = JSON.parse(fs.readFileSync(LICENSES_PATH, 'utf8'));
-    }
-  } catch (e) {
-    list = [];
-  }
-  const entry = {
+async function saveNewKey(key, userId = 'manual', tag = '', tier = 'standard', maxAccounts = 4) {
+  await db.saveNewKey(key, userId, tag, tier, maxAccounts);
+  return {
     key,
     createdAt: new Date().toISOString(),
     used: false,
@@ -51,9 +47,6 @@ function saveNewKey(key, userId = 'manual', tag = '', tier = 'standard', maxAcco
     hwid: null,
     hwidBoundAt: null
   };
-  list.push(entry);
-  fs.writeFileSync(LICENSES_PATH, JSON.stringify(list, null, 2));
-  return entry;
 }
 
 let client = null;
@@ -162,24 +155,13 @@ function startBot() {
         return message.reply('⚠️ **Usage:** `resethwid <license_key>`\nExample: `resethwid SPY-PREM-2A68-5041`');
       }
 
-      let list = [];
-      try {
-        if (fs.existsSync(LICENSES_PATH)) {
-          list = JSON.parse(fs.readFileSync(LICENSES_PATH, 'utf8'));
-        }
-      } catch (e) { list = []; }
-
-      const found = list.find(l => l.key.toUpperCase() === targetKey);
+      const found = await db.getLicense(targetKey);
       if (!found) {
         return message.reply(`❌ **License Key Not Found:** \`${targetKey}\` does not exist in the database.`);
       }
 
       const prevHwid = found.hwid || 'None (Was already unlocked)';
-      found.hwid = null;
-      found.hwidBoundAt = null;
-      found.hwidResetAt = new Date().toISOString();
-      found.hwidResetBy = message.author.id;
-      fs.writeFileSync(LICENSES_PATH, JSON.stringify(list, null, 2));
+      await db.resetHwid(targetKey, message.author.id);
 
       const resetEmbed = new EmbedBuilder()
         .setColor(0x22C55E)
@@ -232,26 +214,13 @@ function startBot() {
         return message.reply('⚠️ **Usage:** `setlimit <license_key> <account_limit>`\nExample: `setlimit SPY-PREM-2A68-5041 50`\n(Allows setting any number of accounts: 10, 50, 100, etc.)');
       }
 
-      let list = [];
-      try {
-        if (fs.existsSync(LICENSES_PATH)) {
-          list = JSON.parse(fs.readFileSync(LICENSES_PATH, 'utf8'));
-        }
-      } catch (e) { list = []; }
-
-      const found = list.find(l => l.key.toUpperCase() === targetKey);
+      const found = await db.getLicense(targetKey);
       if (!found) {
         return message.reply(`❌ **License Key Not Found:** \`${targetKey}\` does not exist in the database.`);
       }
 
       const prevLimit = found.maxAccounts || 4;
-      found.maxAccounts = targetLimit;
-      if (targetLimit > 4) {
-        found.tier = 'premium';
-      }
-      found.limitUpdatedAt = new Date().toISOString();
-      found.limitUpdatedBy = message.author.id;
-      fs.writeFileSync(LICENSES_PATH, JSON.stringify(list, null, 2));
+      await db.setLimit(targetKey, targetLimit, message.author.id);
 
       const limitEmbed = new EmbedBuilder()
         .setColor(0x22C55E)
@@ -294,7 +263,7 @@ function startBot() {
 
       const tier = customLimit > 4 ? 'premium' : 'standard';
       const newKey = generateLicenseKey(tier);
-      saveNewKey(newKey, message.author.id, message.author.tag || message.author.username, tier, customLimit);
+      await saveNewKey(newKey, message.author.id, message.author.tag || message.author.username, tier, customLimit);
 
       const customEmbed = new EmbedBuilder()
         .setColor(0x22C55E)
@@ -327,14 +296,7 @@ function startBot() {
         return message.reply('⚠️ **Usage:** `keyinfo <license_key>`\nExample: `keyinfo SPY-PREM-2A68-5041`');
       }
 
-      let list = [];
-      try {
-        if (fs.existsSync(LICENSES_PATH)) {
-          list = JSON.parse(fs.readFileSync(LICENSES_PATH, 'utf8'));
-        }
-      } catch (e) { list = []; }
-
-      const found = list.find(l => l.key.toUpperCase() === targetKey);
+      const found = await db.getLicense(targetKey);
       if (!found) {
         return message.reply(`❌ **License Key Not Found:** \`${targetKey}\``);
       }
@@ -388,7 +350,7 @@ function startBot() {
 
       // Owner Authorized! Generate Premium 30-account key
       const newPremKey = generateLicenseKey('premium');
-      saveNewKey(newPremKey, message.author.id, message.author.tag || message.author.username, 'premium', 30);
+      await saveNewKey(newPremKey, message.author.id, message.author.tag || message.author.username, 'premium', 30);
 
       const premEmbed = new EmbedBuilder()
         .setColor(0x22C55E) // Radiant Emerald
@@ -409,7 +371,7 @@ function startBot() {
           },
           {
             name: '🚀 Web Dashboard',
-            value: `Open **http://localhost:3000** and paste your key to activate!`
+            value: `[**Open SPY WEB Dashboard**](${DASHBOARD_URL})\n${DASHBOARD_URL}`
           }
         )
         .setFooter({ text: 'SPY WEB • Premium 30-Account Clearance • Owner Only' })
@@ -419,7 +381,7 @@ function startBot() {
         await message.reply({ embeds: [premEmbed] });
         console.log(`[SPY WEB Bot] Generated & issued PREMIUM 30-account key "${newPremKey}" to Owner @${message.author.username} (${message.author.id})`);
       } catch (err) {
-        message.reply(`👑 **SPY WEB PREMIUM 30-ACCOUNT KEY:** \`${newPremKey}\`\nEnter at http://localhost:3000 to activate up to 30 accounts!`);
+        message.reply(`👑 **SPY WEB PREMIUM 30-ACCOUNT KEY:** \`${newPremKey}\`\nEnter at ${DASHBOARD_URL} to activate up to 30 accounts!`);
       }
       return;
     }
@@ -429,7 +391,7 @@ function startBot() {
       // If the Owner types "key", give them a Premium 30-account key automatically!
       if (isOwner) {
         const newPremKey = generateLicenseKey('premium');
-        saveNewKey(newPremKey, message.author.id, message.author.tag || message.author.username, 'premium', 30);
+        await saveNewKey(newPremKey, message.author.id, message.author.tag || message.author.username, 'premium', 30);
 
         const ownerAutoEmbed = new EmbedBuilder()
           .setColor(0x22C55E)
@@ -446,7 +408,7 @@ function startBot() {
             },
             {
               name: '🌐 Web Dashboard',
-              value: `**http://localhost:3000**`
+              value: `[**Open SPY WEB Dashboard**](${DASHBOARD_URL})\n${DASHBOARD_URL}`
             }
           )
           .setFooter({ text: 'SPY WEB • Owner 30-Account Clearance' })
@@ -456,14 +418,14 @@ function startBot() {
           await message.reply({ embeds: [ownerAutoEmbed] });
           console.log(`[SPY WEB Bot] Auto-issued PREMIUM 30-account key "${newPremKey}" to Owner @${message.author.username} (${message.author.id})`);
         } catch (e) {
-          message.reply(`👑 **SPY WEB OWNER VIP KEY (30 ACCOUNTS):** \`${newPremKey}\``);
+          message.reply(`👑 **SPY WEB OWNER VIP KEY (30 ACCOUNTS):** \`${newPremKey}\`\n${DASHBOARD_URL}`);
         }
         return;
       }
 
       // Standard user: Issue Free 4-account key
       const newFreeKey = generateLicenseKey('standard');
-      saveNewKey(newFreeKey, message.author.id, message.author.tag || message.author.username, 'standard', 4);
+      await saveNewKey(newFreeKey, message.author.id, message.author.tag || message.author.username, 'standard', 4);
 
       const replyEmbed = new EmbedBuilder()
         .setColor(0x10B981) // Clean Emerald / Mint
@@ -484,7 +446,7 @@ function startBot() {
           },
           {
             name: '🚀 How to Activate',
-            value: `1. Open SPY WEB: **http://localhost:3000**\n2. Paste your License Key: \`${newFreeKey}\`\n3. Click **Verify** to activate your 4 accounts!`
+            value: `1. Open SPY WEB: [**${DASHBOARD_URL}**](${DASHBOARD_URL})\n2. Paste your License Key: \`${newFreeKey}\`\n3. Click **Verify** to activate your 4 accounts!`
           }
         )
         .setFooter({ text: 'SPY WEB • Free Standard License • 4 Accounts Max' })
