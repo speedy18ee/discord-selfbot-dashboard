@@ -87,6 +87,10 @@ function saveBotAccounts() {
 }
 
 let soundboardTracks = loadJson(SOUNDBOARD_META_FILE, []);
+// Backward compatibility: assign any legacy unassigned tracks to the primary VIP license
+soundboardTracks.forEach(t => {
+  if (!t.licenseKey) t.licenseKey = 'SPY-PREM-17CC-EE9F';
+});
 function saveSoundboardTracks() {
   saveJson(SOUNDBOARD_META_FILE, soundboardTracks);
 }
@@ -1154,8 +1158,13 @@ io.on('connection', socket => {
     // Real-time microphone audio chunk
   });
 
-  // 10. Soundboard & Music Upload System
+  // 10. Soundboard & Music Upload System — STRICT ISOLATION PER LICENSE KEY
   socket.on('soundboard_upload_chunk', (data, callback) => {
+    if (!socket.isLicensed || !socket.activeLicenseKey) {
+      if (typeof callback === 'function') callback({ success: false, error: 'Valid license required to upload audio' });
+      return;
+    }
+
     const { id, name, chunkIndex, totalChunks, chunkData } = data || {};
     if (!soundboardBuffers.has(id)) soundboardBuffers.set(id, []);
     soundboardBuffers.get(id)[chunkIndex] = chunkData;
@@ -1172,18 +1181,19 @@ io.on('connection', socket => {
       soundboardBuffers.delete(id);
 
       const track = {
+        licenseKey: socket.activeLicenseKey, // STRICT PER-KEY ISOLATION
         id,
         name: name || `Audio ${id}`,
         fileName,
         filePath,
         createdAt: new Date().toISOString()
       };
-      const existingIdx = soundboardTracks.findIndex(t => t.id === id);
+      const existingIdx = soundboardTracks.findIndex(t => t.id === id && t.licenseKey === socket.activeLicenseKey);
       if (existingIdx >= 0) soundboardTracks[existingIdx] = track;
       else soundboardTracks.push(track);
       saveSoundboardTracks();
 
-      console.log(`[SPY WEB] ✓ Music/Sound uploaded: "${track.name}" (${(fullBuffer.length / 1024).toFixed(1)} KB)`);
+      console.log(`[SPY WEB] ✓ Music/Sound uploaded for license [${socket.activeLicenseKey}]: "${track.name}" (${(fullBuffer.length / 1024).toFixed(1)} KB)`);
       if (typeof callback === 'function') callback({ success: true, track });
     } else {
       if (typeof callback === 'function') callback({ success: true, progress: receivedCount / totalChunks });
@@ -1195,7 +1205,7 @@ io.on('connection', socket => {
     const isLoop = !!data?.loop;
     const isAmp = !!data?.amplified;
     currentPlayingIsAmp = isAmp;
-    console.log(`[SPY WEB] 🔊 Playing sound/music: "${soundId}" (loop: ${isLoop}, amp: ${isAmp})`);
+    console.log(`[SPY WEB] 🔊 Playing sound/music: "${soundId}" for license [${socket.activeLicenseKey}] (loop: ${isLoop}, amp: ${isAmp})`);
 
     const baseDb = currentAmpSettings.gainDb || 0;
     let volumeMult = Math.pow(10, baseDb / 20);
@@ -1206,7 +1216,11 @@ io.on('connection', socket => {
     const airFactor = 1 + ((currentAmpSettings.airPct || 0) / 100) * 0.5;
     const totalMultiplier = Math.max(0.1, Math.min(volumeMult * bassFactor * airFactor, 500000.0));
 
-    const track = soundboardTracks.find(t => t.id === soundId || t.name === soundId);
+    // Only allow playing tracks that belong to THIS license key
+    const track = soundboardTracks.find(t =>
+      (t.id === soundId || t.name === soundId) &&
+      t.licenseKey === socket.activeLicenseKey
+    );
     let targetPath = null;
 
     if (track && fs.existsSync(track.filePath)) {
@@ -1237,10 +1251,10 @@ io.on('connection', socket => {
         });
       }
     } else {
-      console.warn(`[SPY WEB] Sound/Music not found on disk: "${soundId}"`);
+      console.warn(`[SPY WEB] Sound/Music not found for license [${socket.activeLicenseKey}]: "${soundId}"`);
       socket.emit('play_status', {
         success: false,
-        message: `Audio file "${soundId}" not found on server disk.`
+        message: `Audio file "${soundId}" not found for this license key.`
       });
     }
   });
@@ -1261,22 +1275,36 @@ io.on('connection', socket => {
     }
   });
 
+  // Get soundboard sounds ISOLATED to this license key only!
   socket.on('get_soundboard_sounds', callback => {
     if (typeof callback === 'function') {
-      callback({ success: true, sounds: soundboardTracks });
+      if (!socket.isLicensed || !socket.activeLicenseKey) {
+        return callback({ success: true, sounds: [] });
+      }
+      const mySounds = soundboardTracks.filter(t => t.licenseKey === socket.activeLicenseKey);
+      callback({ success: true, sounds: mySounds });
     }
   });
 
+  // Remove soundboard sound ONLY if owned by this license key!
   socket.on('remove_soundboard_sound', (id, callback) => {
-    const idx = soundboardTracks.findIndex(t => t.id === id);
+    if (!socket.isLicensed || !socket.activeLicenseKey) {
+      if (typeof callback === 'function') callback({ success: false, error: 'Unauthorized' });
+      return;
+    }
+    const idx = soundboardTracks.findIndex(t => t.id === id && t.licenseKey === socket.activeLicenseKey);
     if (idx >= 0) {
       const tr = soundboardTracks.splice(idx, 1)[0];
-      if (tr.filePath && fs.existsSync(tr.filePath)) {
+      const otherRef = soundboardTracks.some(t => t.filePath === tr.filePath);
+      if (!otherRef && tr.filePath && fs.existsSync(tr.filePath)) {
         try { fs.unlinkSync(tr.filePath); } catch (e) {}
       }
       saveSoundboardTracks();
+      console.log(`[SPY WEB] Removed sound "${tr.name}" for license [${socket.activeLicenseKey}]`);
+      if (typeof callback === 'function') callback({ success: true });
+    } else {
+      if (typeof callback === 'function') callback({ success: false, error: 'Sound not found under this license' });
     }
-    if (typeof callback === 'function') callback({ success: true });
   });
 
   // 11. Voice Channel Members & Imitation
