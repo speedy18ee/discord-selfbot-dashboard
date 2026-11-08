@@ -1670,6 +1670,18 @@
       renderAccountsGrid(list);
     });
 
+    socket.on('account_token_error', data => {
+      showToast(data.error || 'Operative token issue. Please update your account token in Operatives tab.', 'error');
+    });
+
+    socket.on('play_status', data => {
+      if (data && data.success) {
+        showToast(data.message, 'success');
+      } else if (data) {
+        showToast(data.message, 'error');
+      }
+    });
+
     // License Authenticated Handler
     function onLicenseAuthenticated(key, accountsList, botsList, tier, maxAccounts) {
       activeLicense = key;
@@ -1772,8 +1784,6 @@
           if (res.hwidMismatch) {
             showToast('🔒 1-Device Lock: HWID mismatch. Ask the bot owner to reset HWID.', 'error');
           }
-        }
-      });
         }
       });
     }
@@ -2175,7 +2185,7 @@
 
       socket.emit('get_guild_channels', { guildId }, res => {
         select.innerHTML = '<option value="">-- Select Voice Channel --</option>';
-        if (res.success && res.channels && res.channels.length > 0) {
+        if (res && res.success && res.channels && res.channels.length > 0) {
           res.channels.forEach(ch => {
             const opt = document.createElement('option');
             opt.value = ch.id;
@@ -2183,7 +2193,10 @@
             select.appendChild(opt);
           });
         } else {
-          select.innerHTML = '<option value="">(No Voice Channels or Enter Manual ID Below)</option>';
+          select.innerHTML = '<option value="">(No Voice Channels detected — Enter Manual VC ID Below)</option>';
+          if (res && res.error) {
+            showToast('Voice channels note: ' + res.error + '. You can enter Voice Channel ID manually below.', 'info');
+          }
         }
       });
     }
@@ -2212,17 +2225,19 @@
 
         socket.emit('join_voice', { guildId: selectedGuild ? selectedGuild.id : null, channelId }, res => {
           btn.disabled = false;
-          if (res.success) {
+          if (res && res.success) {
             isConnectedVoice = true;
             btn.className = 'connect-bridge-btn active';
             txt.textContent = 'DISCONNECT ALL';
             badge.className = 'minimal-status-badge connected';
             const numJoined = res.connectedCount || myAccounts.length || 1;
-            badge.textContent = `LIVE • ${numJoined} ACCOUNT(S) BROADCASTING SIMULTANEOUSLY`;
-            showToast(`Voice Connected! All ${numJoined} account(s) joined VC and ready to play music!`, 'success');
+            const opJoined = res.operativeCount !== undefined ? res.operativeCount : numJoined;
+            badge.textContent = `LIVE • ${numJoined} NODE(S) CONNECTED`;
+            showToast(`Voice Connected! ${numJoined} node(s) (${opJoined} operative${opJoined === 1 ? '' : 's'}${res.joinedBot ? ' + 1 bot' : ''}) joined VC!`, 'success');
           } else {
             txt.textContent = 'CONNECT AMPLIFIER';
-            showToast('Voice connection failed: ' + (res.error || 'Timeout'), 'error');
+            const errMsg = (res && res.error) ? res.error : 'Could not join VC. Please check permissions or operative token.';
+            showToast('Voice connection failed: ' + errMsg, 'error');
           }
         });
       } else {
